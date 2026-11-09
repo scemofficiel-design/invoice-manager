@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.env
+*.db
+*.db-wal
+*.db-shm
+.DS_Store
+coverage/
+playwright-report/
+test-results/
+.claude/
+backend/dist/
+frontend/dist/
+test-results/
+playwright-report/
+Invoice Manager.app/

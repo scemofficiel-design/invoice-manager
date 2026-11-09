@@ -1,0 +1,22 @@
+{
+  "name": "@im/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./money": "./src/money/index.ts",
+    "./tax": "./src/tax/index.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./constants": "./src/constants/index.ts",
+    "./numbering": "./src/numbering/index.ts",
+    "./status": "./src/status/index.ts",
+    "./units": "./src/units.ts",
+    "./types": "./src/types/index.ts",
+    "./i18n/fr.json": "./src/i18n/fr.json",
+    "./i18n/en.json": "./src/i18n/en.json"
+  },
+  "dependencies": {
+    "zod": "4.6.7"
+  }
+}

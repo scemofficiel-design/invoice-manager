@@ -8,7 +8,7 @@ import type { z } from 'zod';
 import { computeDocument, type DocumentResult, type TaxDefinition } from '@im/shared/tax';
 import type { documentLineSchema } from '@im/shared/schemas';
 import type { DocumentLine } from '@im/shared/types';
-import type { DB } from '../../database/connection';
+import type { DB } from '../../database/tx';
 import {
   activities,
   catalogItems,

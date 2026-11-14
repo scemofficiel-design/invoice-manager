@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { currencyCreateSchema, currencyUpdateSchema, exchangeRateCreateSchema } from '@im/shared/schemas';
 import type { Currency, ExchangeRate } from '@im/shared/types';
-import { transaction } from '../../database/connection';
+import { transaction } from '../../database/tx';
 import { companies, currencies, exchangeRates } from '../../database/schema';
 import { requireAuth, requireOwner } from '../../middleware/auth';
 import { badRequest, conflict, notFound } from '../../utils/errors';

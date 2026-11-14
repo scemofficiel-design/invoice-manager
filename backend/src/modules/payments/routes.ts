@@ -3,7 +3,7 @@ import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { paymentCreateSchema, reasonSchema } from '@im/shared/schemas';
 import type { PaymentSummary, Receipt, ReceiptSnapshot } from '@im/shared/types';
-import { transaction, type DB } from '../../database/connection';
+import { transaction, type DB } from '../../database/tx';
 import { invoices, payments, receipts } from '../../database/schema';
 import { companyAccess, scopeOf } from '../../middleware/auth';
 import { badRequest, conflict, notFound } from '../../utils/errors';
@@ -79,7 +79,7 @@ export async function paymentRoutes(app: FastifyInstance) {
       return { id, created: true };
     });
     const summary = findPaymentSummary(conn.db, scope.companyId, result.id);
-    if (summary.receiptId) await archiveSafely(req.log, () => ensureReceiptArchived(conn, app.config, scope.companyId, summary.receiptId!));
+    if (summary.receiptId) await archiveSafely(req.log, () => ensureReceiptArchived(conn, scope.companyId, summary.receiptId!));
     return reply.code(result.created ? 201 : 200).send(summary);
   });
 

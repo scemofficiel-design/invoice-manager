@@ -23,7 +23,7 @@ describe('sécurité', () => {
     const c = await setupOwner(ctx.app);
     const cid = (await c.post('/companies', companyInput('X'))).json().id;
     const anon = new Client(ctx.app);
-    for (const url of ['/companies', `/companies/${cid}`, `/companies/${cid}/clients`, `/companies/${cid}/invoices`, `/companies/${cid}/quotes`, `/companies/${cid}/payments`, '/dashboard', '/search?q=ab', '/admin/backups', '/admin/audit', '/currencies']) {
+    for (const url of ['/companies', `/companies/${cid}`, `/companies/${cid}/clients`, `/companies/${cid}/invoices`, `/companies/${cid}/quotes`, `/companies/${cid}/payments`, '/dashboard', '/search?q=ab', '/admin/audit', '/currencies']) {
       expect((await anon.get(url)).statusCode, url).toBe(401);
     }
   });

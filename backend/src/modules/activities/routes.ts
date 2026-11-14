@@ -3,7 +3,7 @@ import { and, asc, eq, isNull } from 'drizzle-orm';
 import { searchAny } from '../../utils/search';
 import { activityCreateSchema, activityUpdateSchema, listQuerySchema } from '@im/shared/schemas';
 import type { Activity } from '@im/shared/types';
-import { transaction } from '../../database/connection';
+import { transaction } from '../../database/tx';
 import { activities } from '../../database/schema';
 import { companyAccess, scopeOf } from '../../middleware/auth';
 import { notFound } from '../../utils/errors';

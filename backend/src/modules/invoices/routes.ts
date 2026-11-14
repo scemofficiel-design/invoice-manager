@@ -3,7 +3,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { documentListQuerySchema, invoiceInputSchema, reasonSchema } from '@im/shared/schemas';
 import { invoiceDisplayStatus } from '@im/shared/status';
 import type { Invoice } from '@im/shared/types';
-import { transaction, type DB } from '../../database/connection';
+import { transaction, type DB } from '../../database/tx';
 import { clients, invoiceTaxTotals, invoices, payments, quotes } from '../../database/schema';
 import { companyAccess, scopeOf } from '../../middleware/auth';
 import { conflict, notFound } from '../../utils/errors';
@@ -117,7 +117,7 @@ export async function invoiceRoutes(app: FastifyInstance) {
         .run();
       recordAudit(conn.db, { ...scope, action: 'issue', entityType: 'invoice', entityId: i.id, summary: `Facture ${number} émise (${i.totalMinor} ${i.currency})` });
     });
-    await archiveSafely(req.log, () => ensureInvoiceArchived(conn, app.config, scope.companyId, idOf(req)));
+    await archiveSafely(req.log, () => ensureInvoiceArchived(conn, scope.companyId, idOf(req)));
     return loadInvoice(conn.db, scope.companyId, idOf(req));
   });
 

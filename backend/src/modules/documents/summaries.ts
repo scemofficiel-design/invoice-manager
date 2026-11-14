@@ -3,7 +3,7 @@ import { and, desc, eq, gte, lte, type SQL } from 'drizzle-orm';
 import { searchAny } from '../../utils/search';
 import { invoiceDisplayStatus, quoteDisplayStatus } from '@im/shared/status';
 import type { InvoiceSummary, PaymentSummary, QuoteSummary } from '@im/shared/types';
-import type { DB } from '../../database/connection';
+import type { DB } from '../../database/tx';
 import { clients, invoices, payments, quotes, receipts } from '../../database/schema';
 import { todayLocal } from '../../utils/time';
 

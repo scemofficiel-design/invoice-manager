@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { and, asc, eq, isNull } from 'drizzle-orm';
 import { listQuerySchema, taxCreateSchema, taxUpdateSchema } from '@im/shared/schemas';
 import type { Tax } from '@im/shared/types';
-import { transaction } from '../../database/connection';
+import { transaction } from '../../database/tx';
 import { taxes } from '../../database/schema';
 import { companyAccess, scopeOf } from '../../middleware/auth';
 import { notFound } from '../../utils/errors';

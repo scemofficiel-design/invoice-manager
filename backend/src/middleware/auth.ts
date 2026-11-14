@@ -1,9 +1,8 @@
-import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { FastifyRequest } from 'fastify';
 import { and, eq } from 'drizzle-orm';
-import { COMPANY_ROLE_RANK, CSRF_HEADER, SESSION_COOKIE, type CompanyRole } from '@im/shared/constants';
+import { COMPANY_ROLE_RANK, CSRF_HEADER, type CompanyRole } from '@im/shared/constants';
 import { companies, userCompanyAccess } from '../database/schema';
 import { forbidden, notFound, unauthorized } from '../utils/errors';
-import { resolveSession } from '../modules/auth/service';
 
 const MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -24,22 +23,6 @@ export async function csrfGuard(req: FastifyRequest): Promise<void> {
     }
     if (host !== req.headers.host) throw forbidden('Origine non autorisée');
   }
-}
-
-/** Charge l'utilisateur à partir du cookie de session (sans l'exiger). */
-export async function loadSession(req: FastifyRequest, reply: FastifyReply): Promise<void> {
-  req.user = null;
-  req.sessionToken = null;
-  req.company = null;
-  const token = req.cookies[SESSION_COOKIE];
-  if (!token) return;
-  const s = resolveSession(req.server.conn, token);
-  if (!s) {
-    reply.clearCookie(SESSION_COOKIE, { path: '/' });
-    return;
-  }
-  req.user = s.user;
-  req.sessionToken = token;
 }
 
 export async function requireAuth(req: FastifyRequest): Promise<void> {

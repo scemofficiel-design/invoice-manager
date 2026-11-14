@@ -4,7 +4,7 @@ import { searchAny } from '../../utils/search';
 import { z } from 'zod';
 import { catalogItemCreateSchema, catalogItemUpdateSchema } from '@im/shared/schemas';
 import type { CatalogItem } from '@im/shared/types';
-import { transaction, type DB } from '../../database/connection';
+import { transaction, type DB } from '../../database/tx';
 import { activities, catalogItemTaxes, catalogItems, currencies, taxes } from '../../database/schema';
 import { companyAccess, scopeOf } from '../../middleware/auth';
 import { badRequest, notFound } from '../../utils/errors';

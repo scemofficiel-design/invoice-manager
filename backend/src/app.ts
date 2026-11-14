@@ -1,56 +1,30 @@
 /**
- * Fabrique de l'application. Réutilisable telle quelle par le serveur CLI, les tests,
- * et plus tard un empaquetage desktop (Electron/Tauri) ou un déploiement serveur.
+ * Banc de test Node : expose le noyau métier via Fastify pour les tests d'intégration (Vitest).
+ * L'application livrée est l'application iPhone, qui exécute les mêmes modules dans le navigateur.
  */
 import Fastify, { type FastifyError, type FastifyInstance } from 'fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 import rateLimit from '@fastify/rate-limit';
-import fastifyStatic from '@fastify/static';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { API_PREFIX } from '@im/shared/constants';
 import type { AppConfig } from './config/index';
 import { openDatabase, type Connection } from './database/connection';
 import { runMigrations } from './database/migrate';
-import { csrfGuard, loadSession } from './middleware/auth';
-import { activityRoutes } from './modules/activities/routes';
+import { businessRoutes } from './business-routes';
+import { csrfGuard } from './middleware/auth';
+import { loadSession } from './middleware/session';
 import { authRoutes } from './modules/auth/routes';
-import { companyRoutes } from './modules/companies/routes';
-import { currencyRoutes } from './modules/currencies/routes';
-import { taxRoutes } from './modules/taxes/routes';
-import { catalogRoutes } from './modules/catalog/routes';
-import { clientRoutes } from './modules/clients/routes';
-import { invoiceRoutes } from './modules/invoices/routes';
-import { paymentRoutes } from './modules/payments/routes';
-import { quoteRoutes } from './modules/quotes/routes';
-import { pdfRoutes } from './pdf/routes';
-import { dashboardRoutes } from './modules/dashboard/routes';
-import { searchRoutes } from './modules/search/routes';
-import { backupRoutes } from './modules/backup/routes';
 import { adminRoutes } from './modules/users/routes';
+import { nodePdfRenderer } from './pdf/node-renderer';
+import { setPdfRenderer } from './pdf/renderer';
 import { AppError } from './utils/errors';
+import { mapSqliteError } from './utils/sqlite-errors';
 
 export interface CreateAppOptions {
   /** Connexion existante (tests) ; sinon la base du profil est ouverte. */
   connection?: Connection;
   /** Limite de tentatives de connexion par fenêtre (désactivée si 0). */
   loginRateLimit?: number;
-}
-
-/** Traduit une erreur SQLite (contrainte, trigger) en erreur HTTP compréhensible. */
-function mapSqliteError(err: Error & { code?: string }): AppError | null {
-  if (!err.code?.startsWith('SQLITE_')) return null;
-  const m = /^([A-Z_]+): (.+)$/.exec(err.message);
-  if (err.code === 'SQLITE_CONSTRAINT_TRIGGER' && m) return new AppError(409, m[1]!, m[2]!);
-  if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || err.code === 'SQLITE_CONSTRAINT_PRIMARYKEY') {
-    return new AppError(409, 'CONFLICT', 'Cette valeur existe déjà (doublon)');
-  }
-  if (err.code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
-    return new AppError(400, 'INVALID_REFERENCE', 'Référence invalide ou appartenant à une autre entreprise');
-  }
-  if (err.code === 'SQLITE_CONSTRAINT_CHECK') return new AppError(400, 'CONSTRAINT_VIOLATION', 'Valeur non autorisée');
-  return null;
 }
 
 export async function createApp(config: AppConfig, opts: CreateAppOptions = {}): Promise<FastifyInstance> {
@@ -61,11 +35,8 @@ export async function createApp(config: AppConfig, opts: CreateAppOptions = {}):
   });
 
   const conn = opts.connection ?? openDatabase(config.dbPath);
-  await runMigrations(conn, {
-    migrationsDir: config.migrationsDir,
-    backupsDir: config.profile === 'test' ? null : config.backupsDir,
-    appVersion: config.version,
-  });
+  await runMigrations(conn, { migrationsDir: config.migrationsDir });
+  setPdfRenderer(nodePdfRenderer);
   app.decorate('conn', conn);
   app.decorate('config', config);
   app.decorateRequest('user', null);
@@ -121,36 +92,13 @@ export async function createApp(config: AppConfig, opts: CreateAppOptions = {}):
         reply.header('cache-control', reply.getHeader('cache-control') ?? 'no-store');
       });
       await api.register(authRoutes);
-      await api.register(companyRoutes);
-      await api.register(activityRoutes);
-      await api.register(taxRoutes);
-      await api.register(currencyRoutes);
       await api.register(adminRoutes);
-      await api.register(clientRoutes);
-      await api.register(catalogRoutes);
-      await api.register(quoteRoutes);
-      await api.register(invoiceRoutes);
-      await api.register(paymentRoutes);
-      await api.register(pdfRoutes);
-      await api.register(dashboardRoutes);
-      await api.register(searchRoutes);
-      await api.register(backupRoutes);
+      for (const r of businessRoutes) await api.register(r);
     },
     { prefix: API_PREFIX },
   );
 
-  // Frontend compilé (production) avec repli SPA.
-  const staticDir = config.staticDir;
-  const hasStatic = !!staticDir && existsSync(join(staticDir, 'index.html'));
-  if (hasStatic) await app.register(fastifyStatic, { root: staticDir!, wildcard: false, index: ['index.html'] });
-  app.setNotFoundHandler((req, reply) => {
-    const path = req.url.split('?')[0] ?? '';
-    // Repli SPA uniquement pour les routes de l'application, jamais pour un fichier manquant (.js, .css…).
-    if (req.url.startsWith('/api') || !hasStatic || req.method !== 'GET' || /\.[a-z0-9]+$/i.test(path)) {
-      return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Route introuvable' } });
-    }
-    return reply.header('cache-control', 'no-cache').sendFile('index.html');
-  });
+  app.setNotFoundHandler((_req, reply) => reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Route introuvable' } }));
 
   return app;
 }

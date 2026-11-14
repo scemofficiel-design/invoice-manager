@@ -1,30 +1,16 @@
 /**
  * Modèles PDF (devis, facture, reçu) générés localement avec pdfmake.
- * Polices embarquées (Roboto fournie par pdfmake) : aucun accès réseau.
+ * Polices embarquées (Roboto fournie par pdfmake) : aucun accès réseau. Le moteur de rendu
+ * (Node ou navigateur) est fourni par l'environnement via ./renderer.
  * Les modèles reçoivent des données déjà figées (snapshots) : le rendu d'un document émis est stable.
  */
-import { createRequire } from 'node:module';
-import PdfPrinter from 'pdfmake';
 import type { Content, TDocumentDefinitions, TableCell } from 'pdfmake/interfaces';
 import fr from '@im/shared/i18n/fr.json';
 import en from '@im/shared/i18n/en.json';
 import { formatDecimal, formatMoney, percentToString } from '@im/shared/money';
 import type { DocumentLine, LegalId, TaxTotalRow } from '@im/shared/types';
 import { taxLabel, unitLabel } from '@im/shared/units';
-
-const require = createRequire(import.meta.url);
-const vfsModule = require('pdfmake/build/vfs_fonts.js') as { pdfMake?: { vfs: Record<string, string> } } & Record<string, string>;
-const vfs: Record<string, string> = vfsModule.pdfMake?.vfs ?? vfsModule;
-const font = (name: string) => Buffer.from(vfs[name]!, 'base64');
-
-const printer = new PdfPrinter({
-  Roboto: {
-    normal: font('Roboto-Regular.ttf'),
-    bold: font('Roboto-Medium.ttf'),
-    italics: font('Roboto-Italic.ttf'),
-    bolditalics: font('Roboto-MediumItalic.ttf'),
-  },
-});
+import { renderPdf } from './renderer';
 
 type Locale = 'fr' | 'en';
 const DICTS = { fr: fr.pdf, en: en.pdf } as const;
@@ -193,21 +179,12 @@ function base(content: Content[], opts: { locale: Locale; footer: string[]; wate
   };
 }
 
-function render(def: TDocumentDefinitions): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const doc = printer.createPdfKitDocument(def);
-    const chunks: Buffer[] = [];
-    doc.on('data', (c: Buffer) => chunks.push(c));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
-    doc.end();
-  });
-}
+const render = (def: TDocumentDefinitions): Promise<Uint8Array> => renderPdf(def);
 
 /** Recréé à chaque rendu : pdfmake annote les nœuds de contenu, ils ne doivent pas être partagés. */
 const rule = (): Content => ({ canvas: [{ type: 'line', x1: 0, y1: 0, x2: 516, y2: 0, lineWidth: 0.6, lineColor: COLORS.line }], margin: [0, 14, 0, 14] });
 
-export async function renderDocumentPdf(d: DocumentPdfInput): Promise<Buffer> {
+export async function renderDocumentPdf(d: DocumentPdfInput): Promise<Uint8Array> {
   const L = d.locale;
   const m = (v: number) => money(v, d.currency, d.minorUnits, L);
   const meta: [string, string][] = [
@@ -305,7 +282,7 @@ export async function renderDocumentPdf(d: DocumentPdfInput): Promise<Buffer> {
   return render(base(content, { locale: L, footer: [regs.join(' · '), d.legalFooter ?? ''], watermark: d.watermark ? tr(L, d.watermark) : null }));
 }
 
-export async function renderReceiptPdf(r: ReceiptPdfInput): Promise<Buffer> {
+export async function renderReceiptPdf(r: ReceiptPdfInput): Promise<Uint8Array> {
   const L = r.locale;
   const m = (v: number) => money(v, r.currency, r.minorUnits, L);
   const row = (k: string, v: string, bold = false): TableCell[] => [{ text: k, style: 'muted' }, { text: v, alignment: 'right', bold }];

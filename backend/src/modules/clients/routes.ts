@@ -3,7 +3,7 @@ import { and, asc, eq, isNull, type SQL } from 'drizzle-orm';
 import { searchAny } from '../../utils/search';
 import { clientCreateSchema, clientUpdateSchema, listQuerySchema } from '@im/shared/schemas';
 import type { Balance, Client, ClientDetail } from '@im/shared/types';
-import { transaction } from '../../database/connection';
+import { transaction } from '../../database/tx';
 import { clients, currencies } from '../../database/schema';
 import { companyAccess, scopeOf } from '../../middleware/auth';
 import { badRequest, notFound } from '../../utils/errors';

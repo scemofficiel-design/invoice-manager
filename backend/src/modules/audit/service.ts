@@ -1,6 +1,6 @@
 import { and, desc, eq, type SQL } from 'drizzle-orm';
 import type { AuditEntry } from '@im/shared/types';
-import type { DB } from '../../database/connection';
+import type { DB } from '../../database/tx';
 import { auditLog, users } from '../../database/schema';
 import { newId, nowIso } from '../../utils/time';
 

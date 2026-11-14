@@ -10,7 +10,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import type { Sqlite } from '../../database/connection';
+import type { SqliteLike as Sqlite } from '../../database/tx';
 import { companyAccess, requireAuth } from '../../middleware/auth';
 import { badRequest } from '../../utils/errors';
 import { addDays, todayLocal } from '../../utils/time';

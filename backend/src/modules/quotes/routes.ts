@@ -3,7 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { documentListQuerySchema, quoteInputSchema } from '@im/shared/schemas';
 import { QUOTE_TRANSITIONS, quoteDisplayStatus } from '@im/shared/status';
 import type { Invoice, Quote } from '@im/shared/types';
-import { transaction, type DB } from '../../database/connection';
+import { transaction, type DB } from '../../database/tx';
 import { clients, invoices, quotes } from '../../database/schema';
 import { companyAccess, scopeOf } from '../../middleware/auth';
 import { conflict, notFound } from '../../utils/errors';

@@ -2,7 +2,7 @@ import { and, eq } from 'drizzle-orm';
 import { DEFAULT_NUMBERING, DOC_TYPES, type DocType } from '@im/shared/constants';
 import { formatDocumentNumber, periodKeyFor } from '@im/shared/numbering';
 import type { NumberingSequence } from '@im/shared/types';
-import type { DB } from '../../database/connection';
+import type { DB } from '../../database/tx';
 import { numberingSequences } from '../../database/schema';
 import { badRequest, notFound } from '../../utils/errors';
 import { nowIso, todayLocal } from '../../utils/time';

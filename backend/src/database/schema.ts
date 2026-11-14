@@ -10,6 +10,7 @@
  */
 import { sql } from 'drizzle-orm';
 import {
+  customType,
   check,
   foreignKey,
   index,
@@ -20,6 +21,13 @@ import {
   unique,
 } from 'drizzle-orm/sqlite-core';
 import type { LegalId } from '@im/shared/types';
+
+/** BLOB portable : Uint8Array côté application (sql.js), Buffer converti pour better-sqlite3. */
+const bytes = customType<{ data: Uint8Array; driverData: Uint8Array }>({
+  dataType: () => 'blob',
+  toDriver: (v) => (typeof globalThis.Buffer !== 'undefined' ? globalThis.Buffer.from(v) : v),
+  fromDriver: (v) => (v instanceof Uint8Array ? v : new Uint8Array(v as ArrayBuffer)),
+});
 
 const ts = (name: string) => text(name);
 const bool = (name: string) => integer(name, { mode: 'boolean' });
@@ -576,6 +584,8 @@ export const storedFiles = sqliteTable(
     mime: text('mime').notNull(),
     sha256: text('sha256').notNull(),
     size: integer('size').notNull(),
+    /** Contenu du fichier : tout est dans la base, une seule sauvegarde suffit. */
+    content: bytes('content'),
     createdAt: ts('created_at').notNull(),
   },
   (t) => [index('stored_files_entity_idx').on(t.entityType, t.entityId)],

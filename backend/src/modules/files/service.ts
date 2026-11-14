@@ -1,46 +1,37 @@
-import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve, sep } from 'node:path';
-import { eq } from 'drizzle-orm';
-import type { DB } from '../../database/connection';
+/**
+ * Fichiers (logos, PDF archivés) stockés DANS la base SQLite (colonne BLOB), avec empreinte SHA-256
+ * vérifiée à chaque lecture. Une seule sauvegarde de la base contient donc tout.
+ */
+import { and, eq } from 'drizzle-orm';
+import type { DB } from '../../database/tx';
 import { storedFiles } from '../../database/schema';
-import { badRequest, notFound } from '../../utils/errors';
+import { AppError, badRequest, notFound } from '../../utils/errors';
+import { fromBase64, sha256Hex } from '../../utils/bytes';
 import { newId, nowIso } from '../../utils/time';
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
+const PNG_SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** Détecte PNG / JPEG par signature binaire (le type déclaré n'est jamais cru sur parole). */
-export function detectImage(buf: Buffer): { mime: 'image/png' | 'image/jpeg'; ext: 'png' | 'jpg' } | null {
-  if (buf.length > 8 && buf.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
-    return { mime: 'image/png', ext: 'png' };
-  }
+export function detectImage(buf: Uint8Array): { mime: 'image/png' | 'image/jpeg'; ext: 'png' | 'jpg' } | null {
+  if (buf.length > 8 && PNG_SIG.every((b, i) => buf[i] === b)) return { mime: 'image/png', ext: 'png' };
   if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
   return null;
 }
 
-export function decodeDataUrl(dataUrl: string): Buffer {
+export function decodeDataUrl(dataUrl: string): Uint8Array {
   const m = /^data:image\/(png|jpeg);base64,([A-Za-z0-9+/=]+)$/.exec(dataUrl);
   if (!m) throw badRequest('INVALID_IMAGE', 'Image PNG ou JPEG attendue');
-  const buf = Buffer.from(m[2]!, 'base64');
+  const buf = fromBase64(m[2]!);
   if (buf.length > MAX_LOGO_BYTES) throw badRequest('IMAGE_TOO_LARGE', 'Image trop volumineuse (2 Mo maximum)');
   return buf;
 }
 
-/** Résout un chemin relatif stocké en base en garantissant qu'il reste dans le répertoire de données. */
-export function safeResolve(dataDir: string, relPath: string): string {
-  const abs = resolve(dataDir, relPath);
-  if (!abs.startsWith(resolve(dataDir) + sep)) throw badRequest('INVALID_PATH', 'Chemin invalide');
-  return abs;
-}
-
 export function storeFile(
   db: DB,
-  dataDir: string,
-  opts: { companyId: string | null; kind: 'logo' | 'pdf' | 'export'; entityType: string; entityId: string; absPath: string; mime: string; content: Buffer },
+  opts: { companyId: string | null; kind: 'logo' | 'pdf' | 'export'; entityType: string; entityId: string; relPath: string; mime: string; content: Uint8Array },
 ): string {
   const id = newId();
-  mkdirSync(dirname(opts.absPath), { recursive: true, mode: 0o700 });
-  writeFileSync(opts.absPath, opts.content, { mode: 0o600 });
   db.insert(storedFiles)
     .values({
       id,
@@ -48,20 +39,23 @@ export function storeFile(
       kind: opts.kind,
       entityType: opts.entityType,
       entityId: opts.entityId,
-      relPath: relative(dataDir, opts.absPath),
+      relPath: opts.relPath,
       mime: opts.mime,
-      sha256: createHash('sha256').update(opts.content).digest('hex'),
+      sha256: sha256Hex(opts.content),
       size: opts.content.length,
+      content: opts.content,
       createdAt: nowIso(),
     })
     .run();
   return id;
 }
 
-export function readStoredFile(db: DB, dataDir: string, fileId: string, companyId: string): { mime: string; content: Buffer } {
-  const f = db.select().from(storedFiles).where(eq(storedFiles.id, fileId)).get();
-  if (!f || f.companyId !== companyId) throw notFound('Fichier');
-  return { mime: f.mime, content: readFileSync(safeResolve(dataDir, f.relPath)) };
+/** Lit un fichier de l'entreprise et vérifie son intégrité. */
+export function readStoredFile(db: DB, fileId: string, companyId: string): { mime: string; content: Uint8Array } {
+  const f = db.select().from(storedFiles).where(and(eq(storedFiles.id, fileId), eq(storedFiles.companyId, companyId))).get();
+  if (!f || !f.content) throw notFound('Fichier');
+  if (sha256Hex(f.content) !== f.sha256) throw new AppError(500, 'INTEGRITY_ERROR', 'Le fichier archivé a été modifié (empreinte invalide)');
+  return { mime: f.mime, content: f.content };
 }
 
-export const companyDir = (documentsDir: string, companyId: string) => join(documentsDir, 'companies', companyId);
+export const safeFileName = (s: string) => s.replace(/[^A-Za-z0-9._-]/g, '_');

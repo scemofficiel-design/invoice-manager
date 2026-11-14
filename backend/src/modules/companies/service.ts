@@ -1,15 +1,14 @@
 import { and, asc, eq, isNull } from 'drizzle-orm';
-import { join } from 'node:path';
 import { TAX_PRESETS, type CompanyRole } from '@im/shared/constants';
 import type { companyCreateSchema, companyUpdateSchema } from '@im/shared/schemas';
 import type { Company, CompanyMember, CompanySummary, CurrentUser } from '@im/shared/types';
 import type { z } from 'zod';
-import { transaction, type Connection } from '../../database/connection';
+import { transaction, type Connection } from '../../database/tx';
 import { companies, currencies, taxes, userCompanyAccess, users } from '../../database/schema';
 import { badRequest, notFound } from '../../utils/errors';
 import { newId, nowIso } from '../../utils/time';
 import { diff, recordAudit } from '../audit/service';
-import { companyDir, decodeDataUrl, detectImage, storeFile } from '../files/service';
+import { decodeDataUrl, detectImage, storeFile } from '../files/service';
 import { createDefaultSequences } from '../numbering/service';
 
 type CompanyRow = typeof companies.$inferSelect;
@@ -107,7 +106,6 @@ export function setCompanyArchived(conn: Connection, scope: { companyId: string;
 
 export function setCompanyLogo(
   conn: Connection,
-  paths: { dataDir: string; documentsDir: string },
   scope: { companyId: string; userId: string },
   dataUrl: string | null,
 ): void {
@@ -118,10 +116,10 @@ export function setCompanyLogo(
       const buf = decodeDataUrl(dataUrl);
       const kind = detectImage(buf);
       if (!kind) throw badRequest('INVALID_IMAGE', 'Le fichier n’est pas une image PNG ou JPEG valide');
-      const absPath = join(companyDir(paths.documentsDir, scope.companyId), 'logo', `${newId()}.${kind.ext}`);
-      fileId = storeFile(conn.db, paths.dataDir, { companyId: scope.companyId, kind: 'logo', entityType: 'company', entityId: scope.companyId, absPath, mime: kind.mime, content: buf });
+      const relPath = `companies/${scope.companyId}/logo/${newId()}.${kind.ext}`;
+      fileId = storeFile(conn.db, { companyId: scope.companyId, kind: 'logo', entityType: 'company', entityId: scope.companyId, relPath, mime: kind.mime, content: buf });
     }
-    // Les anciens logos restent sur disque : ils peuvent figurer sur des PDF déjà émis.
+    // Les anciens logos sont conservés : ils peuvent figurer sur des PDF déjà émis.
     conn.db.update(companies).set({ logoFileId: fileId, updatedAt: nowIso() }).where(eq(companies.id, scope.companyId)).run();
     recordAudit(conn.db, { userId: scope.userId, companyId: scope.companyId, action: dataUrl ? 'logo_set' : 'logo_removed', entityType: 'company', entityId: scope.companyId, summary: dataUrl ? 'Logo mis à jour' : 'Logo retiré' });
   });
@@ -154,11 +152,16 @@ export function setMember(conn: Connection, scope: { companyId: string; userId: 
 
 export function removeMember(conn: Connection, scope: { companyId: string; userId: string }, memberId: string): void {
   transaction(conn, () => {
-    const r = conn.db
+    const exists = conn.db
+      .select()
+      .from(userCompanyAccess)
+      .where(and(eq(userCompanyAccess.companyId, scope.companyId), eq(userCompanyAccess.userId, memberId)))
+      .get();
+    if (!exists) throw notFound('Accès');
+    conn.db
       .delete(userCompanyAccess)
       .where(and(eq(userCompanyAccess.companyId, scope.companyId), eq(userCompanyAccess.userId, memberId)))
       .run();
-    if (r.changes === 0) throw notFound('Accès');
     recordAudit(conn.db, { userId: scope.userId, companyId: scope.companyId, action: 'member_removed', entityType: 'user', entityId: memberId, summary: 'Accès retiré' });
   });
 }

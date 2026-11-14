@@ -1,5 +1,3 @@
-import { readdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { companyInput, makeApp, setupOwner, type Client, type TestCtx } from '../test/helpers';
 import { addDays, todayLocal } from '../utils/time';
@@ -30,6 +28,8 @@ const body = (n = 1) => ({
   terms: 'Paiement à 30 jours',
   lines: Array.from({ length: n }, (_, i) => ({ name: `Prestation ${i + 1}`, description: 'Détail', quantityMilli: 1000, unitPriceMinor: 10000, taxIds, discountType: i === 0 ? 'percent' : null, discountValue: i === 0 ? 50_000 : null })),
 });
+const archived = (type: string) =>
+  (ctx.app.conn.sqlite.prepare(`SELECT rel_path p FROM stored_files WHERE entity_type = ? AND kind = 'pdf'`).all(type) as { p: string }[]).map((r) => r.p);
 const pages = (buf: Buffer) => (buf.toString('latin1').match(/\/Type\s*\/Page[^s]/g) ?? []).length;
 const getPdf = (path: string) => ctx.app.inject({ method: 'GET', url: `/api/v1${path}`, headers: { cookie: `im_session=${c.cookie}` } });
 
@@ -50,8 +50,7 @@ describe('PDF', () => {
     const draft = await getPdf(`/companies/${cid}/invoices/${d.id}/pdf`);
     expect(draft.headers['x-archived']).toBe('0');
     const inv = (await c.post(`/companies/${cid}/invoices/${d.id}/issue`)).json();
-    const dir = join(ctx.dataDir, 'documents', 'companies', cid, 'invoices', today.slice(0, 4));
-    expect(readdirSync(dir)).toEqual([`${inv.number}.pdf`]);
+    expect(archived('invoice')).toEqual([`companies/${cid}/invoices/${today.slice(0, 4)}/${inv.number}.pdf`]);
     const a = await getPdf(`/companies/${cid}/invoices/${d.id}/pdf`);
     const b = await getPdf(`/companies/${cid}/invoices/${d.id}/pdf`);
     expect(a.headers['x-archived']).toBe('1');
@@ -64,7 +63,7 @@ describe('PDF', () => {
   it('détecte une altération du PDF archivé', async () => {
     const d = (await c.post(`/companies/${cid}/invoices`, body())).json();
     const inv = (await c.post(`/companies/${cid}/invoices/${d.id}/issue`)).json();
-    writeFileSync(join(ctx.dataDir, 'documents', 'companies', cid, 'invoices', today.slice(0, 4), `${inv.number}.pdf`), '%PDF-falsifié');
+    ctx.app.conn.sqlite.prepare(`UPDATE stored_files SET content = ? WHERE entity_id = ?`).run(Buffer.from('%PDF-falsifié'), inv.id);
     const r = await getPdf(`/companies/${cid}/invoices/${d.id}/pdf`);
     expect(r.statusCode).toBe(500);
     expect(r.json().error.code).toBe('INTEGRITY_ERROR');
@@ -83,7 +82,7 @@ describe('PDF', () => {
     const r = await getPdf(`/companies/${cid}/receipts/${p.receiptId}/pdf`);
     expect(r.statusCode).toBe(200);
     expect(r.headers['x-archived']).toBe('1');
-    expect(readdirSync(join(ctx.dataDir, 'documents', 'companies', cid, 'receipts', today.slice(0, 4)))).toEqual([`${p.receiptNumber}.pdf`]);
+    expect(archived('receipt')).toEqual([`companies/${cid}/receipts/${today.slice(0, 4)}/${p.receiptNumber}.pdf`]);
     // reçu annulé : rendu avec filigrane, non servi depuis l'archive
     await c.post(`/companies/${cid}/payments/${p.id}/void`, { reason: 'Erreur de saisie' });
     expect((await getPdf(`/companies/${cid}/receipts/${p.receiptId}/pdf`)).headers['x-archived']).toBe('0');

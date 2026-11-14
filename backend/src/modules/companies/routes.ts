@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DOC_TYPES } from '@im/shared/constants';
 import { companyAccessSchema, companyCreateSchema, companyUpdateSchema, numberingUpdateSchema } from '@im/shared/schemas';
 import { companyAccess, requireAuth, requireOwner, scopeOf } from '../../middleware/auth';
-import { transaction } from '../../database/connection';
+import { transaction } from '../../database/tx';
 import { parse } from '../../utils/validate';
 import { recordAudit } from '../audit/service';
 import { readStoredFile } from '../files/service';
@@ -22,7 +22,7 @@ import {
 } from './service';
 
 export async function companyRoutes(app: FastifyInstance) {
-  const { conn, config } = app;
+  const { conn } = app;
 
   app.get('/companies', { preHandler: requireAuth }, async (req) => listCompaniesForUser(conn, req.user!));
 
@@ -52,16 +52,16 @@ export async function companyRoutes(app: FastifyInstance) {
   app.get('/companies/:companyId/logo', { preHandler: companyAccess('viewer') }, async (req, reply) => {
     const row = getCompanyRow(conn, req.company!.id);
     if (!row.logoFileId) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Aucun logo' } });
-    const f = readStoredFile(conn.db, config.dataDir, row.logoFileId, row.id);
+    const f = readStoredFile(conn.db, row.logoFileId, row.id);
     return reply.header('content-type', f.mime).header('cache-control', 'private, max-age=60').send(f.content);
   });
   app.put('/companies/:companyId/logo', { preHandler: companyAccess('admin'), bodyLimit: 3 * 1024 * 1024 }, async (req, reply) => {
     const { dataUrl } = parse(z.object({ dataUrl: z.string().max(3 * 1024 * 1024) }), req.body);
-    setCompanyLogo(conn, config, scopeOf(req), dataUrl);
+    setCompanyLogo(conn, scopeOf(req), dataUrl);
     return reply.code(204).send();
   });
   app.delete('/companies/:companyId/logo', { preHandler: companyAccess('admin') }, async (req, reply) => {
-    setCompanyLogo(conn, config, scopeOf(req), null);
+    setCompanyLogo(conn, scopeOf(req), null);
     return reply.code(204).send();
   });
 

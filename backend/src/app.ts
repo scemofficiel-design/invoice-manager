@@ -17,6 +17,7 @@ import { authRoutes } from './modules/auth/routes';
 import { adminRoutes } from './modules/users/routes';
 import { nodePdfRenderer } from './pdf/node-renderer';
 import { setPdfRenderer } from './pdf/renderer';
+import { memoryBlobStore, setBlobStore } from './modules/files/blob-store';
 import { AppError } from './utils/errors';
 import { mapSqliteError } from './utils/sqlite-errors';
 
@@ -37,6 +38,7 @@ export async function createApp(config: AppConfig, opts: CreateAppOptions = {}):
   const conn = opts.connection ?? openDatabase(config.dbPath);
   await runMigrations(conn, { migrationsDir: config.migrationsDir });
   setPdfRenderer(nodePdfRenderer);
+  setBlobStore(memoryBlobStore());
   app.decorate('conn', conn);
   app.decorate('config', config);
   app.decorateRequest('user', null);

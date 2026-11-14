@@ -17,12 +17,24 @@ aucune facture, aucun client ni aucun PDF n'est jamais envoyé sur Internet.
 
 L'application fonctionne ensuite **hors connexion**.
 
+## Dossiers clients : vos anciennes factures
+
+Menu **Dossiers clients** (ou la fiche d'un client) → **Importer des factures** : choisissez un ou
+plusieurs fichiers (PDF, photos JPEG/PNG/HEIC de l'iPhone). Ils sont rangés dans le dossier du client.
+Pour chaque document, vous pouvez noter (facultatif) numéro, date, montant, devise et « payée / non
+payée » : le dossier affiche alors le reste dû déclaré. Ces anciennes factures restent **à part** :
+elles n'entrent ni dans la numérotation ni dans les tableaux de bord.
+
+**Exporter le dossier (ZIP)** crée un fichier par client (anciennes factures + factures émises par
+l'app) à enregistrer dans Fichiers. Une app web ne peut pas créer de dossiers directement dans l'app
+Fichiers d'iOS : les dossiers vivent dans l'application, et l'export ZIP en fait une copie.
+
 ## Créer des fichiers sur le téléphone
 
 - **PDF** (devis, factures, reçus) : bouton « PDF » → feuille de partage d'iOS : aperçu, Imprimer,
   Enregistrer dans Fichiers / iCloud Drive, Mail, AirDrop.
-- **Sauvegarde** : Administration → Sauvegardes → « Exporter une sauvegarde » crée un fichier `.sqlite`
-  contenant tout (PDF compris). Enregistrez-le dans iCloud Drive. « Choisir un fichier de sauvegarde »
+- **Sauvegarde** : Administration → Sauvegardes → « Exporter une sauvegarde » crée un fichier `.zip`
+  contenant tout (base, PDF et documents importés). Enregistrez-le dans iCloud Drive. « Choisir un fichier de sauvegarde »
   restaure ; « Annuler la dernière restauration » revient en arrière.
 
 ⚠️ Supprimer l'icône de l'écran d'accueil ou effacer les données de Safari efface aussi les données
@@ -32,8 +44,8 @@ de l'application : **exportez une sauvegarde régulièrement** (un rappel s'affi
 
 Chaque `git push` sur `main` déclenche [la publication automatique](.github/workflows/pages.yml) :
 vérification des types, tests, compilation, mise en ligne sur GitHub Pages. L'iPhone récupère la
-nouvelle version au lancement suivant ; les données sur l'appareil sont conservées (le schéma de la
-base est mis à jour automatiquement).
+nouvelle version au lancement suivant. **Vos informations ne sont jamais à ressaisir** : elles restent
+dans le stockage de l'app sur l'iPhone et le schéma de la base est mis à jour automatiquement.
 
 ## Développement
 

@@ -376,3 +376,21 @@ export interface ReceiptSnapshot {
   invoice: { id: string; number: string; issueDate: string; totalMinor: number; currency: string };
   payment: { date: string; method: string; reference: string | null };
 }
+
+export interface ClientDocument {
+  id: string;
+  companyId: string;
+  clientId: string;
+  clientName: string;
+  kind: 'imported_invoice' | 'other';
+  fileName: string;
+  mime: string;
+  size: number;
+  number: string | null;
+  docDate: string | null;
+  amountMinor: number | null;
+  currency: string | null;
+  paid: boolean | null;
+  notes: string | null;
+  createdAt: string;
+}

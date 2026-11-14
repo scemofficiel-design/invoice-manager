@@ -4,8 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { DatabaseBackup, FolderOpen, ShieldCheck, TriangleAlert, Undo2 } from 'lucide-react';
-import { auditBackup, exportBytes, flush, inspectBackup, restoreBackup, type BackupCheck } from '@/local/runtime';
-import { isPersisted, kvGet, kvSet, requestPersistence } from '@/local/store';
+import { zipSync } from 'fflate';
+import { auditBackup, documentIds, exportBytes, flush, inspectBackup, readBackupFile, restoreBackup, type BackupCheck, type BackupContent } from '@/local/runtime';
+import { fileGet, isPersisted, kvGet, kvSet, requestPersistence } from '@/local/store';
 import { saveFile } from '@/lib/files';
 import { useSession } from '@/contexts/session';
 import { useConfirm } from '@/contexts/confirm';
@@ -30,12 +31,24 @@ function useBackupStatus() {
   });
 }
 
-/** Exporte toute la base (PDF archivés compris) vers un fichier : Fichiers, iCloud Drive, AirDrop… */
+/**
+ * Exporte tout dans un seul fichier ZIP : la base (PDF émis compris) et les documents importés.
+ * À enregistrer dans Fichiers / iCloud Drive, ou à envoyer par AirDrop.
+ */
 export async function exportBackup(): Promise<boolean> {
   await flush();
-  const bytes = exportBytes();
-  const name = `invoice-manager-sauvegarde-${new Date().toISOString().slice(0, 10)}.sqlite`;
-  const r = await saveFile(bytes, name, 'application/octet-stream', 'Sauvegarde Invoice Manager');
+  const db = exportBytes();
+  const entries: Record<string, Uint8Array | [Uint8Array, { level: 0 }]> = { 'invoice-manager.sqlite': db };
+  const ids = documentIds();
+  for (const id of ids) {
+    const f = await fileGet(id);
+    if (!f) throw new Error('Un document importé est introuvable sur l’appareil : sauvegarde interrompue.');
+    entries[`fichiers/${id}`] = [f, { level: 0 }]; // PDF et photos sont déjà compressés
+  }
+  entries['manifest.json'] = new TextEncoder().encode(JSON.stringify({ app: 'invoice-manager', createdAt: new Date().toISOString(), documents: ids.length }, null, 2));
+  const bytes = zipSync(entries, { level: 6 });
+  const name = `invoice-manager-sauvegarde-${new Date().toISOString().slice(0, 10)}.zip`;
+  const r = await saveFile(bytes, name, 'application/zip', 'Sauvegarde Invoice Manager');
   if (r === 'cancelled') return false;
   await kvSet(LAST_EXPORT, new Date().toISOString());
   auditBackup('backup_export', `Sauvegarde exportée (${size(bytes.length)})`);
@@ -66,10 +79,17 @@ export function BackupsPage() {
   const status = useBackupStatus();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ bytes: Uint8Array; name: string; check: BackupCheck } | null>(null);
+  const [pending, setPending] = useState<{ content: BackupContent; name: string; check: BackupCheck } | null>(null);
   const dbSize = (() => {
     try {
       return exportBytes().length;
+    } catch {
+      return 0;
+    }
+  })();
+  const docCount = (() => {
+    try {
+      return documentIds().length;
     } catch {
       return 0;
     }
@@ -88,8 +108,8 @@ export function BackupsPage() {
   };
   const pick = async (file: File) => {
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      setPending({ bytes, name: file.name, check: await inspectBackup(bytes) });
+      const content = readBackupFile(new Uint8Array(await file.arrayBuffer()));
+      setPending({ content, name: file.name, check: await inspectBackup(content) });
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -98,7 +118,7 @@ export function BackupsPage() {
     if (!pending) return;
     setBusy('restore');
     try {
-      await restoreBackup(pending.bytes);
+      await restoreBackup(pending.content);
       window.location.reload();
     } catch (e) {
       toast.error((e as Error).message);
@@ -111,7 +131,7 @@ export function BackupsPage() {
     if (!prev) return;
     setBusy('undo');
     try {
-      await restoreBackup(prev);
+      await restoreBackup({ db: prev, files: {} }, { filesOnDevice: true });
       window.location.reload();
     } catch (e) {
       toast.error((e as Error).message);
@@ -130,7 +150,7 @@ export function BackupsPage() {
               <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><DatabaseBackup className="size-5" /></span>
               <div className="text-[13px]">
                 <p className="font-medium">{t('backup.lastExport')}</p>
-                <p className="text-muted">{s?.lastExportAt ? formatDateTime(s.lastExportAt) : t('backup.never')} · {t('backup.size')} {size(dbSize)}</p>
+                <p className="text-muted">{s?.lastExportAt ? formatDateTime(s.lastExportAt) : t('backup.never')} · {t('backup.size')} {size(dbSize)}{docCount ? ` · ${t('backup.importedCount', { count: docCount })}` : ''}</p>
               </div>
             </div>
             <Button className="w-full sm:w-auto" loading={busy === 'export'} onClick={() => void doExport()}><DatabaseBackup />{t('backup.export')}</Button>
@@ -141,7 +161,7 @@ export function BackupsPage() {
         <Card>
           <CardHeader title={t('backup.restoreTitle')} description={t('backup.restoreSubtitle')} />
           <CardBody className="flex flex-wrap gap-2">
-            <input ref={input} type="file" accept=".sqlite,.db,application/octet-stream,application/x-sqlite3,application/vnd.sqlite3" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void pick(f); }} />
+            <input ref={input} type="file" accept=".zip,.sqlite,.db,application/zip,application/octet-stream,application/x-sqlite3,application/vnd.sqlite3" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void pick(f); }} />
             <Button variant="secondary" onClick={() => input.current?.click()}><FolderOpen />{t('backup.chooseFile')}</Button>
             {s?.hasPreviousState && <Button variant="ghost" loading={busy === 'undo'} onClick={() => void undoRestore()}><Undo2 />{t('backup.undoRestore')}</Button>}
           </CardBody>
@@ -166,7 +186,7 @@ export function BackupsPage() {
         <Dialog open onOpenChange={(o) => !o && setPending(null)} title={t('backup.confirmTitle')} description={pending.name}
           footer={<><Button variant="secondary" onClick={() => setPending(null)}>{t('common.cancel')}</Button><Button variant="danger" loading={busy === 'restore'} onClick={() => void doRestore()}>{t('backup.restore')}</Button></>}>
           <div className="space-y-2 text-[13px]">
-            <p>{t('backup.confirmContents', { companies: pending.check.companies, clients: pending.check.clients, invoices: pending.check.invoices })}</p>
+            <p>{t('backup.confirmContents', { companies: pending.check.companies, clients: pending.check.clients, invoices: pending.check.invoices, documents: pending.check.documents })}</p>
             <p className="text-warning">{t('backup.confirmWarning')}</p>
           </div>
         </Dialog>

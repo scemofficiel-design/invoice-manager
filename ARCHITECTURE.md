@@ -36,6 +36,8 @@ iPhone (Safari / écran d'accueil)
 | Sauvegardes | Export d'un fichier `.sqlite` complet via Partager ; restauration avec contrôle d'intégrité, version de schéma et copie de l'état précédent (annulable) ; rappel après 7 jours |
 | Sécurité | CSP stricte (aucune connexion externe, `wasm-unsafe-eval` pour SQLite), aucun traceur, aucune requête réseau de données |
 | Tests | 102 tests Vitest du noyau (banc de test Node, mêmes modules) + 8 étapes Playwright sur l'application compilée comme sur GitHub Pages (PDF, persistance, sauvegarde/restauration, hors connexion) |
+| Dossiers clients | Table `client_documents` (infos facultatives, SHA-256) ; contenu des fichiers dans un magasin IndexedDB séparé (`files`) pour garder des enregistrements rapides ; affichés à part, hors numérotation et tableaux de bord |
+| Format de sauvegarde | ZIP : `invoice-manager.sqlite` + `fichiers/<id>` + `manifest.json` ; l'ancien format `.sqlite` reste accepté à la restauration ; restauration refusée si un document référencé manque |
 | Limite connue | Effacer les données de Safari ou supprimer l'icône efface les données : l'export régulier est indispensable |
 
 ---

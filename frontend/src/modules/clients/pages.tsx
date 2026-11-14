@@ -14,6 +14,7 @@ import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader, Skeleton, Ta
 import { Checkbox, Input } from '@/components/ui/input';
 import { InvoiceStatusBadge, QuoteStatusBadge } from '@/components/StatusBadge';
 import { ClientDialog } from './ClientDialog';
+import { ClientFolderCard } from '@/modules/folders/pages';
 
 export const canEdit = (role?: string) => role === 'admin' || role === 'editor';
 
@@ -165,6 +166,7 @@ export function ClientDetailPage() {
           )}
         </Card>
       </div>
+      <ClientFolderCard companyId={companyId} clientId={c.id} clientName={c.name} />
       {editing && <ClientDialog companyId={companyId} client={c} onClose={() => setEditing(false)} />}
     </>
   );

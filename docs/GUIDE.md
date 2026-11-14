@@ -49,11 +49,19 @@ intégrité est vérifiée à chaque ouverture.
 - **Vue d'ensemble** d'une entreprise : chiffre d'affaires HT, encaissé, en attente, en retard, évolution mensuelle, meilleurs clients, taxes facturées, sur la période choisie.
 - **Recherche globale** : `⌘K` (ou le champ « Rechercher ») trouve clients, factures, devis, articles et références de paiement, sans tenir compte des accents.
 
+## 7 bis. Dossiers clients (anciennes factures)
+
+- **Dossiers clients** → choisissez le client → **Importer des factures** (plusieurs fichiers à la fois : PDF, photos JPEG/PNG/HEIC). Depuis la fiche d'un client, le bouton du dossier importe directement chez ce client.
+- Touchez un document pour l'ouvrir (aperçu, impression, partage). **Compléter les informations** : numéro, date, montant, devise, payée ou non, notes, ou changer de client.
+- Le dossier affiche le **reste dû déclaré** (documents marqués « non payée »), par devise. Ces documents ne se mélangent pas aux factures créées dans l'app.
+- **Exporter le dossier (ZIP)** : anciennes factures et factures émises du client, dans un seul fichier.
+- La recherche globale (⌘K) retrouve aussi les documents importés (nom, numéro, notes).
+
 ## 8. Sauvegardes et restauration
 
 Vos données ne sont **que sur cet iPhone**. Supprimer l'icône de l'écran d'accueil ou effacer les données de Safari les efface.
 
-- **Administration → Sauvegardes → Exporter une sauvegarde** : un fichier `.sqlite` contenant tout (PDF compris) est créé ; choisissez « Enregistrer dans Fichiers » puis iCloud Drive. Un rappel s'affiche si la dernière sauvegarde date de plus de 7 jours.
+- **Administration → Sauvegardes → Exporter une sauvegarde** : un fichier `.zip` contenant tout (PDF et documents importés compris) est créé ; choisissez « Enregistrer dans Fichiers » puis iCloud Drive. Un rappel s'affiche si la dernière sauvegarde date de plus de 7 jours.
 - **Choisir un fichier de sauvegarde** : le fichier est vérifié, son contenu est affiché, puis il remplace les données actuelles après confirmation.
 - **Annuler la dernière restauration** remet les données d'avant.
 - Changer d'iPhone : exportez sur l'ancien, installez l'application sur le nouveau, restaurez le fichier.

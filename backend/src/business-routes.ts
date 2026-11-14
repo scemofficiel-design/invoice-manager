@@ -7,6 +7,7 @@
 import { activityRoutes } from './modules/activities/routes';
 import { catalogRoutes } from './modules/catalog/routes';
 import { clientRoutes } from './modules/clients/routes';
+import { clientDocumentRoutes } from './modules/client-documents/routes';
 import { companyRoutes } from './modules/companies/routes';
 import { currencyRoutes } from './modules/currencies/routes';
 import { dashboardRoutes } from './modules/dashboard/routes';
@@ -23,6 +24,7 @@ export const businessRoutes = [
   taxRoutes,
   currencyRoutes,
   clientRoutes,
+  clientDocumentRoutes,
   catalogRoutes,
   quoteRoutes,
   invoiceRoutes,

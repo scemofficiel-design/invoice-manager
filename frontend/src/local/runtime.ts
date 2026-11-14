@@ -23,7 +23,9 @@ import { newId, nowIso } from '@backend/utils/time';
 import type { CurrentUser, MeResponse } from '@im/shared/types';
 import { adapt, configure, loadSqlJs } from './sqlite';
 import { appliedMigrations, migrate, MIGRATION_COUNT } from './migrate';
-import { kvGet, kvSet, requestPersistence } from './store';
+import { fileDelete, fileGet, filePut, kvGet, kvSet, requestPersistence } from './store';
+import { setBlobStore } from '@backend/modules/files/blob-store';
+import { unzipSync } from 'fflate';
 
 export const LOCAL_OWNER_ID = 'local-owner';
 const DB_KEY = 'db';
@@ -226,6 +228,7 @@ export async function boot(): Promise<LocalApp> {
   rawDb = stored ? new SQL.Database(stored) : new SQL.Database();
   const conn = connect(rawDb);
   const applied = migrate(rawDb);
+  setBlobStore({ put: async (k, d) => void (await filePut(k, d)), get: (k) => fileGet(k), delete: async (k) => void (await fileDelete(k)) });
   setPdfRenderer(async (def) => {
     const { renderInBrowser } = await import('./pdf');
     return renderInBrowser(def);
@@ -254,14 +257,41 @@ export interface BackupCheck {
   companies: number;
   invoices: number;
   clients: number;
+  documents: number;
+}
+
+export interface BackupContent {
+  db: Uint8Array;
+  files: Record<string, Uint8Array>;
+}
+
+const isZip = (b: Uint8Array) => b.length > 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
+
+/** Lit un fichier de sauvegarde : ZIP (base + fichiers importés) ou ancien format .sqlite seul. */
+export function readBackupFile(bytes: Uint8Array): BackupContent {
+  if (!isZip(bytes)) return { db: bytes, files: {} };
+  let entries: Record<string, Uint8Array>;
+  try {
+    entries = unzipSync(bytes);
+  } catch {
+    throw new Error('Archive de sauvegarde illisible.');
+  }
+  const db = entries['invoice-manager.sqlite'];
+  if (!db) throw new Error('Ce fichier n’est pas une sauvegarde Invoice Manager valide.');
+  const files: Record<string, Uint8Array> = {};
+  for (const [name, data] of Object.entries(entries)) {
+    const m = /^fichiers\/([\w-]+)$/.exec(name);
+    if (m) files[m[1]!] = data;
+  }
+  return { db, files };
 }
 
 /** Vérifie un fichier de sauvegarde sans toucher aux données actuelles. */
-export async function inspectBackup(bytes: Uint8Array): Promise<BackupCheck> {
+export async function inspectBackup(content: BackupContent, opts: { filesOnDevice?: boolean } = {}): Promise<BackupCheck> {
   const SQL = await loadSqlJs();
   let db: Database;
   try {
-    db = new SQL.Database(bytes);
+    db = new SQL.Database(content.db);
   } catch {
     throw new Error('Ce fichier n’est pas une sauvegarde Invoice Manager valide.');
   }
@@ -273,19 +303,33 @@ export async function inspectBackup(bytes: Uint8Array): Promise<BackupCheck> {
     }
     if (appliedMigrations(db) > MIGRATION_COUNT) throw new Error('Cette sauvegarde provient d’une version plus récente de l’application.');
     const n = (t: string) => Number(db.exec(`SELECT count(*) FROM ${t}`)[0]!.values[0]![0]);
-    return { companies: n('companies'), invoices: n('invoices'), clients: n('clients') };
+    const hasDocs = db.exec(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='client_documents'`).length > 0;
+    if (hasDocs && !opts.filesOnDevice) {
+      const missing = (db.exec('SELECT id FROM client_documents')[0]?.values ?? []).filter(([id]) => !content.files[String(id)]).length;
+      if (missing) throw new Error(`Sauvegarde incomplète : ${missing} document(s) importé(s) manquant(s) dans l’archive.`);
+    }
+    return { companies: n('companies'), invoices: n('invoices'), clients: n('clients'), documents: hasDocs ? n('client_documents') : 0 };
   } finally {
     db.close();
   }
 }
 
-/** Remplace toutes les données par la sauvegarde (l'état actuel est conservé en copie de sécurité). */
-export async function restoreBackup(bytes: Uint8Array): Promise<void> {
-  await inspectBackup(bytes);
+/** Identifiants des documents importés référencés par la base courante. */
+export function documentIds(): string[] {
+  return (rawDb!.exec('SELECT id FROM client_documents')[0]?.values ?? []).map(([id]) => String(id));
+}
+
+/**
+ * Remplace toutes les données par la sauvegarde. L'état actuel est conservé (« Annuler la
+ * dernière restauration ») ; les fichiers importés existants ne sont jamais effacés.
+ */
+export async function restoreBackup(content: BackupContent, opts: { filesOnDevice?: boolean } = {}): Promise<void> {
+  await inspectBackup(content, opts);
   await flush();
   await kvSet('db-before-restore', exportBytes());
+  for (const [id, data] of Object.entries(content.files)) await filePut(id, data);
   const SQL = await loadSqlJs();
-  const db = new SQL.Database(bytes);
+  const db = new SQL.Database(content.db);
   configure(db);
   migrate(db);
   await kvSet(DB_KEY, db.export());

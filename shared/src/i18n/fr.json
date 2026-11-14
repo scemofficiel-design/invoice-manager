@@ -74,7 +74,8 @@
     "invoices": "Factures",
     "payments": "Paiements",
     "commercial": "Commercial",
-    "backups": "Sauvegardes"
+    "backups": "Sauvegardes",
+    "folders": "Dossiers clients"
   },
   "auth": {
     "setupTitle": "Bienvenue dans Invoice Manager",
@@ -525,7 +526,8 @@
       "invoice": "Facture",
       "quote": "Devis",
       "catalog": "Article",
-      "payment": "Paiement"
+      "payment": "Paiement",
+      "document": "Document importé"
     }
   },
   "backup": {
@@ -536,7 +538,7 @@
     "size": "Taille :",
     "export": "Exporter une sauvegarde",
     "exported": "Sauvegarde exportée",
-    "exportHelp": "Un fichier contenant toutes vos données (PDF compris) est créé. Choisissez « Enregistrer dans Fichiers » puis iCloud Drive pour le mettre à l’abri.",
+    "exportHelp": "Un fichier ZIP contenant toutes vos données (PDF et documents importés compris) est créé. Choisissez « Enregistrer dans Fichiers » puis iCloud Drive pour le mettre à l’abri.",
     "restoreTitle": "Restaurer",
     "restoreSubtitle": "Remplace toutes les données de cet appareil par celles d’un fichier de sauvegarde.",
     "chooseFile": "Choisir un fichier de sauvegarde",
@@ -544,7 +546,7 @@
     "undoRestoreHelp": "Les données d’avant la dernière restauration seront remises en place.",
     "restore": "Restaurer",
     "confirmTitle": "Restaurer cette sauvegarde ?",
-    "confirmContents": "Contenu : {{companies}} entreprise(s), {{clients}} client(s), {{invoices}} facture(s).",
+    "confirmContents": "Contenu : {{companies}} entreprise(s), {{clients}} client(s), {{invoices}} facture(s), {{documents}} document(s) importé(s).",
     "confirmWarning": "Les données actuelles seront remplacées. Elles restent récupérables avec « Annuler la dernière restauration ».",
     "whereTitle": "Où sont mes données ?",
     "whereText": "Uniquement dans le stockage privé de cette application, sur cet appareil. Rien n’est envoyé sur Internet.",
@@ -553,6 +555,47 @@
     "askPersist": "Demander la conservation",
     "reminderNever": "Aucune sauvegarde exportée : vos données ne sont que sur cet appareil.",
     "reminderOld": "Dernière sauvegarde il y a {{days}} jours.",
-    "exportNow": "Exporter maintenant"
+    "exportNow": "Exporter maintenant",
+    "importedCount": "{{count}} document(s) importé(s)"
+  },
+  "folder": {
+    "title": "Dossiers clients",
+    "subtitle": "Vos anciennes factures (PDF ou photos), rangées dans le dossier de chaque client.",
+    "cardTitle": "Dossier : anciennes factures",
+    "cardSubtitle": "Documents importés, affichés à part des factures créées dans l’application.",
+    "import": "Importer des factures",
+    "importFor": "Importer pour le client",
+    "chooseClient": "Choisir un client…",
+    "importing": "Import en cours… {{done}}/{{total}}",
+    "imported": "{{count}} document(s) importé(s)",
+    "failed": "{{name}} : {{error}}",
+    "formats": "PDF, JPEG, PNG ou photos iPhone (HEIC) — 25 Mo maximum par fichier. Vous pouvez en sélectionner plusieurs.",
+    "empty": "Aucun document importé",
+    "emptyText": "Importez vos anciennes factures : elles seront rangées dans le dossier du client.",
+    "noFolders": "Aucun dossier pour l’instant",
+    "documents": "{{count}} document(s)",
+    "unpaid": "Reste dû (déclaré)",
+    "file": "Fichier",
+    "number": "Numéro",
+    "date": "Date",
+    "amount": "Montant",
+    "status": "Statut",
+    "paid": "Payée",
+    "unpaidStatus": "Non payée",
+    "unknown": "Non précisé",
+    "open": "Ouvrir",
+    "edit": "Compléter les informations",
+    "delete": "Supprimer du dossier",
+    "deleteConfirm": "Supprimer « {{name}} » du dossier ? Le fichier sera effacé de l’appareil.",
+    "infoTitle": "Informations du document",
+    "infoHelp": "Toutes les informations sont facultatives. Elles servent à retrouver le document et à suivre ce qui reste dû.",
+    "client": "Dossier (client)",
+    "notes": "Notes",
+    "exportZip": "Exporter le dossier (ZIP)",
+    "zipImported": "Factures importées",
+    "zipIssued": "Factures émises",
+    "zipEmpty": "Ce dossier est vide.",
+    "search": "Rechercher dans les dossiers…",
+    "importedOn": "importé le {{date}}"
   }
 }

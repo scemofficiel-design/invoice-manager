@@ -3,13 +3,13 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { Dialog as D } from 'radix-ui';
-import { FileCheck2, FileText, Package, Search, User, Wallet } from 'lucide-react';
+import { FileCheck2, FileText, FolderOpen, Package, Search, User, Wallet } from 'lucide-react';
 import { api } from '@/services/api';
 import { useDebounced } from '@/hooks/useDebounced';
 import { cn } from '@/lib/utils';
 
-interface Result { type: 'client' | 'catalog' | 'quote' | 'invoice' | 'payment'; id: string; companyName: string; title: string; subtitle: string | null; href: string }
-const ICONS = { client: User, invoice: FileCheck2, quote: FileText, catalog: Package, payment: Wallet };
+interface Result { type: 'client' | 'catalog' | 'quote' | 'invoice' | 'payment' | 'document'; id: string; companyName: string; title: string; subtitle: string | null; href: string }
+const ICONS = { client: User, invoice: FileCheck2, quote: FileText, catalog: Package, payment: Wallet, document: FolderOpen };
 
 /** Recherche globale (Cmd/Ctrl + K), limitée aux entreprises accessibles (filtrage côté serveur). */
 export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {

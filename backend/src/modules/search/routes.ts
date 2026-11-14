@@ -6,14 +6,14 @@
 import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, inArray } from 'drizzle-orm';
 import { z } from 'zod';
-import { catalogItems, clients, invoices, payments, quotes } from '../../database/schema';
+import { catalogItems, clientDocuments, clients, invoices, payments, quotes } from '../../database/schema';
 import { requireAuth } from '../../middleware/auth';
 import { searchAny } from '../../utils/search';
 import { parse } from '../../utils/validate';
 import { listCompaniesForUser } from '../companies/service';
 
 export interface SearchResult {
-  type: 'client' | 'catalog' | 'quote' | 'invoice' | 'payment';
+  type: 'client' | 'catalog' | 'quote' | 'invoice' | 'payment' | 'document';
   id: string;
   companyId: string;
   companyName: string;
@@ -63,6 +63,15 @@ export async function searchRoutes(app: FastifyInstance) {
     }
     for (const p of db.select().from(payments).where(and(inArray(payments.companyId, ids), searchAny(q, [payments.reference]))).limit(L).all()) {
       push({ type: 'payment', id: p.id, companyId: p.companyId, title: p.reference ?? '', subtitle: p.paymentDate, href: `/c/${p.companyId}/invoices/${p.invoiceId}` });
+    }
+    for (const d of db
+      .select({ d: clientDocuments, client: clients.name })
+      .from(clientDocuments)
+      .innerJoin(clients, and(eq(clients.id, clientDocuments.clientId), eq(clients.companyId, clientDocuments.companyId)))
+      .where(and(inArray(clientDocuments.companyId, ids), searchAny(q, [clientDocuments.fileName, clientDocuments.number, clientDocuments.notes])))
+      .limit(L)
+      .all()) {
+      push({ type: 'document', id: d.d.id, companyId: d.d.companyId, title: d.d.number ?? d.d.fileName, subtitle: `${d.client} · ${d.d.docDate ?? d.d.createdAt.slice(0, 10)}`, href: `/c/${d.d.companyId}/clients/${d.d.clientId}?documents=1` });
     }
     return out;
   });

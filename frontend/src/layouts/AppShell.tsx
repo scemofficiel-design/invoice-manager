@@ -5,7 +5,7 @@ import { BackupReminder } from '@/modules/admin/BackupsPage';
 import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
-  Building2, ChevronsUpDown, DatabaseBackup, FileCheck2, Package, Wallet, Coins, FileText, Hash, History, Home, Layers, LayoutDashboard, Menu as MenuIcon,
+  Building2, ChevronsUpDown, FolderOpen, DatabaseBackup, FileCheck2, Package, Wallet, Coins, FileText, Hash, History, Home, Layers, LayoutDashboard, Menu as MenuIcon,
   Monitor, Moon, Percent, Plus, Search, Settings, Sun, Users, X,
 } from 'lucide-react';
 import { useMe } from '@/contexts/session';
@@ -129,6 +129,7 @@ export function AppShell() {
               <NavItem to={`/c/${current.id}/quotes`} icon={<FileText />} onClick={close}>{t('nav.quotes')}</NavItem>
               <NavItem to={`/c/${current.id}/invoices`} icon={<FileCheck2 />} onClick={close}>{t('nav.invoices')}</NavItem>
               <NavItem to={`/c/${current.id}/payments`} icon={<Wallet />} onClick={close}>{t('nav.payments')}</NavItem>
+              <NavItem to={`/c/${current.id}/folders`} icon={<FolderOpen />} onClick={close}>{t('nav.folders')}</NavItem>
             </Section>
             <Section label={t('nav.settings')}>
               <NavItem to={`/c/${current.id}/settings/general`} icon={<Settings />} onClick={close}>{t('nav.general')}</NavItem>

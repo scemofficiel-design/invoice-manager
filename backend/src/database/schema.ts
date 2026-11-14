@@ -576,6 +576,42 @@ export const receipts = sqliteTable(
 
 // ── Transverse ─────────────────────────────────────────────────────
 
+/**
+ * Documents importés (anciennes factures en PDF ou photo), rangés dans le dossier d'un client.
+ * Le contenu est conservé à part (magasin de fichiers de l'appareil) ; la base garde les
+ * informations et l'empreinte SHA-256. Ces documents ne participent ni à la numérotation ni aux
+ * tableaux de bord : ils sont affichés à part.
+ */
+export const clientDocuments = sqliteTable(
+  'client_documents',
+  {
+    id: text('id').primaryKey(),
+    companyId: text('company_id')
+      .notNull()
+      .references(() => companies.id),
+    clientId: text('client_id').notNull(),
+    kind: text('kind', { enum: ['imported_invoice', 'other'] }).notNull().default('imported_invoice'),
+    fileName: text('file_name').notNull(),
+    mime: text('mime').notNull(),
+    size: integer('size').notNull(),
+    sha256: text('sha256').notNull(),
+    number: text('number'),
+    docDate: text('doc_date'),
+    amountMinor: integer('amount_minor'),
+    currency: text('currency').references(() => currencies.code),
+    paid: bool('paid'),
+    notes: text('notes'),
+    createdAt: ts('created_at').notNull(),
+    updatedAt: ts('updated_at').notNull(),
+  },
+  (t) => [
+    unique('client_documents_scope').on(t.companyId, t.id),
+    foreignKey({ columns: [t.companyId, t.clientId], foreignColumns: [clients.companyId, clients.id], name: 'client_documents_client_fk' }),
+    index('client_documents_client_idx').on(t.companyId, t.clientId),
+    check('client_documents_amount_chk', sql`${t.amountMinor} IS NULL OR ${t.amountMinor} >= 0`),
+  ],
+);
+
 export const storedFiles = sqliteTable(
   'stored_files',
   {

@@ -289,3 +289,16 @@ export const paymentCreateSchema = z.object({
   idempotencyKey: z.string().min(8).max(100),
 });
 export type PaymentInput = z.input<typeof paymentCreateSchema>;
+
+// ── Documents importés (anciennes factures) ─────────────────────
+export const clientDocumentInfoSchema = z
+  .object({
+    number: optionalText(60),
+    docDate: isoDate.nullish().transform((v) => v ?? null),
+    amountMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).nullish().transform((v) => v ?? null),
+    currency: currencyCode.nullish().transform((v) => v ?? null),
+    paid: z.boolean().nullish().transform((v) => v ?? null),
+    notes: optionalText(2000),
+  })
+  .refine((d) => d.amountMinor === null || d.currency !== null, { message: 'Indiquez la devise du montant', path: ['currency'] });
+export type ClientDocumentInfo = z.input<typeof clientDocumentInfoSchema>;

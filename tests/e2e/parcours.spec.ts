@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { unzipSync } from 'fflate';
 import { expect, test, type Page } from '@playwright/test';
 
 /** Parcours complet de l'application iPhone (données dans le navigateur uniquement). */
@@ -79,19 +80,44 @@ test('paiement partiel et reçu', async () => {
   await expect(page.getByText('Paiement partiel')).toBeVisible();
 });
 
+test('dossier client : import d’anciennes factures et informations', async () => {
+  await nav('Clients').click();
+  await page.getByRole('link', { name: 'Client E2E' }).click();
+  const pdf = (n: string) => ({ name: n, mimeType: 'application/pdf', buffer: Buffer.from(`%PDF-1.4\n% ${n}\n%%EOF`) });
+  await page.locator('#documents input[type=file]').setInputFiles([pdf('Facture-2023-041.pdf'), pdf('Facture-2023-052.pdf')]);
+  await expect(page.getByText('2 document(s) importé(s)')).toBeVisible();
+  await page.getByRole('button', { name: 'Compléter les informations' }).first().click();
+  await page.getByLabel('Numéro').fill('2023-041');
+  await page.getByLabel('Montant').fill('250');
+  await page.getByLabel('Statut').selectOption('no');
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('#documents').getByText(/Reste dû \(déclaré\).*250,00\s\$/)).toBeVisible();
+  // Les anciennes factures restent à part : la liste des factures de l'app est inchangée.
+  await nav('Dossiers clients').click();
+  await expect(page.getByRole('link', { name: /Client E2E.*2 document\(s\)/ })).toBeVisible();
+  await page.getByRole('link', { name: /Client E2E/ }).first().click();
+  const [zip] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exporter le dossier (ZIP)' }).click()]);
+  expect(zip.suggestedFilename()).toBe('Client E2E.zip');
+  const entries = Object.keys(unzipSync(new Uint8Array(readFileSync((await zip.path())!))));
+  expect(entries.some((e) => e.startsWith('Factures importées/'))).toBe(true);
+  expect(entries.some((e) => e.startsWith('Factures émises/FAC-'))).toBe(true);
+});
+
 test('les données survivent au rechargement', async () => {
   await page.reload();
-  await expect(page.getByText('Paiement partiel')).toBeVisible();
+  await expect(page.locator('#documents').getByText('2023-041', { exact: true })).toBeVisible();
   await nav('Accueil').click();
   await expect(page.getByText(/900,00\s\$/).first()).toBeVisible();
 });
 
-test('export de la sauvegarde (fichier SQLite complet)', async () => {
+test('export de la sauvegarde (ZIP : base + documents importés)', async () => {
   await nav('Sauvegardes').click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exporter une sauvegarde' }).click()]);
-  expect(download.suggestedFilename()).toMatch(/^invoice-manager-sauvegarde-\d{4}-\d{2}-\d{2}\.sqlite$/);
+  expect(download.suggestedFilename()).toMatch(/^invoice-manager-sauvegarde-\d{4}-\d{2}-\d{2}\.zip$/);
   backupPath = (await download.path())!;
-  expect(readFileSync(backupPath).subarray(0, 15).toString()).toBe('SQLite format 3');
+  const entries = unzipSync(new Uint8Array(readFileSync(backupPath)));
+  expect(new TextDecoder().decode(entries['invoice-manager.sqlite']!.subarray(0, 15))).toBe('SQLite format 3');
+  expect(Object.keys(entries).filter((e) => e.startsWith('fichiers/'))).toHaveLength(2);
   await expect(page.getByText('Aucune sauvegarde exportée')).toHaveCount(0);
 });
 
@@ -107,7 +133,7 @@ test('restauration depuis le fichier', async () => {
   // … annulée par la restauration.
   await nav('Sauvegardes').click();
   await page.locator('input[type=file]').setInputFiles(backupPath);
-  await expect(page.getByText(/1 entreprise\(s\), 1 client\(s\), 1 facture\(s\)/)).toBeVisible();
+  await expect(page.getByText(/1 entreprise\(s\), 1 client\(s\), 1 facture\(s\), 2 document\(s\) importé\(s\)/)).toBeVisible();
   await page.getByRole('dialog').getByRole('button', { name: 'Restaurer' }).click();
   await page.waitForLoadState('load');
   await nav('Accueil').click();
@@ -115,6 +141,8 @@ test('restauration depuis le fichier', async () => {
   await nav('Clients').click();
   await expect(page.getByRole('link', { name: 'Client E2E' })).toBeVisible();
   await expect(page.getByText('Client après sauvegarde')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Client E2E' }).click();
+  await expect(page.locator('#documents').getByText('2023-041', { exact: true })).toBeVisible();
   await nav('Sauvegardes').click();
   await expect(page.getByRole('button', { name: 'Annuler la dernière restauration' })).toBeVisible();
 });

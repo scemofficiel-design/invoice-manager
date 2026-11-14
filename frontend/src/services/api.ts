@@ -45,6 +45,12 @@ export const api = {
   put: <T>(p: string, b: unknown) => request<T>('PUT', p, b),
   patch: <T>(p: string, b: unknown) => request<T>('PATCH', p, b),
   del: <T = void>(p: string) => request<T>('DELETE', p),
+  /** Envoi d'un fichier binaire (import de documents). */
+  upload: async <T>(p: string, body: Record<string, unknown> & { data: Uint8Array }): Promise<T> => {
+    const { data, ...rest } = body;
+    const res = await call('POST', p, { ...JSON.parse(JSON.stringify(rest)), data });
+    return JSON.parse(JSON.stringify(res.body)) as T;
+  },
   /** Fichier binaire (PDF, logo). */
   file: async (p: string): Promise<FileResult> => {
     const res = await call('GET', p);

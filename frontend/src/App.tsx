@@ -14,6 +14,7 @@ import { QuoteEditorPage, QuotesPage, QuoteViewPage } from '@/modules/documents/
 import { InvoiceEditorPage, InvoicesPage, InvoiceViewPage } from '@/modules/documents/invoices';
 import { PaymentsPage, ReceiptPage } from '@/modules/payments/pages';
 import { BackupsPage } from '@/modules/admin/BackupsPage';
+import { FoldersPage } from '@/modules/folders/pages';
 
 function Splash() {
   return <div className="flex h-full items-center justify-center"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-9 animate-pulse" /></div>;
@@ -51,6 +52,7 @@ export function App() {
         <Route path="c/:companyId/clients" element={<ClientsPage />} />
         <Route path="c/:companyId/clients/:clientId" element={<ClientDetailPage />} />
         <Route path="c/:companyId/catalog" element={<CatalogPage />} />
+        <Route path="c/:companyId/folders" element={<FoldersPage />} />
         <Route path="c/:companyId/quotes" element={<QuotesPage />} />
         <Route path="c/:companyId/quotes/new" element={<QuoteEditorPage />} />
         <Route path="c/:companyId/quotes/:quoteId" element={<QuoteViewPage />} />

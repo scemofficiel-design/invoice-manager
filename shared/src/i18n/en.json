@@ -74,7 +74,8 @@
     "invoices": "Invoices",
     "payments": "Payments",
     "commercial": "Sales",
-    "backups": "Backups"
+    "backups": "Backups",
+    "folders": "Client folders"
   },
   "auth": {
     "setupTitle": "Welcome to Invoice Manager",
@@ -525,7 +526,8 @@
       "invoice": "Invoice",
       "quote": "Quote",
       "catalog": "Item",
-      "payment": "Payment"
+      "payment": "Payment",
+      "document": "Imported document"
     }
   },
   "backup": {
@@ -536,7 +538,7 @@
     "size": "Size:",
     "export": "Export a backup",
     "exported": "Backup exported",
-    "exportHelp": "A file with all your data (PDFs included) is created. Choose “Save to Files” then iCloud Drive to keep it safe.",
+    "exportHelp": "A ZIP file with all your data (PDFs and imported documents included) is created. Choose “Save to Files” then iCloud Drive to keep it safe.",
     "restoreTitle": "Restore",
     "restoreSubtitle": "Replaces all data on this device with a backup file.",
     "chooseFile": "Choose a backup file",
@@ -544,7 +546,7 @@
     "undoRestoreHelp": "The data from before the last restore will be put back.",
     "restore": "Restore",
     "confirmTitle": "Restore this backup?",
-    "confirmContents": "Contents: {{companies}} company(ies), {{clients}} client(s), {{invoices}} invoice(s).",
+    "confirmContents": "Contents: {{companies}} company(ies), {{clients}} client(s), {{invoices}} invoice(s), {{documents}} imported document(s).",
     "confirmWarning": "Current data will be replaced. It can be recovered with “Undo last restore”.",
     "whereTitle": "Where is my data?",
     "whereText": "Only in this app’s private storage, on this device. Nothing is sent over the Internet.",
@@ -553,6 +555,47 @@
     "askPersist": "Request persistent storage",
     "reminderNever": "No backup exported: your data only lives on this device.",
     "reminderOld": "Last backup {{days}} days ago.",
-    "exportNow": "Export now"
+    "exportNow": "Export now",
+    "importedCount": "{{count}} imported document(s)"
+  },
+  "folder": {
+    "title": "Client folders",
+    "subtitle": "Your past invoices (PDFs or photos), filed in each client’s folder.",
+    "cardTitle": "Folder: past invoices",
+    "cardSubtitle": "Imported documents, shown separately from invoices created in the app.",
+    "import": "Import invoices",
+    "importFor": "Import for client",
+    "chooseClient": "Choose a client…",
+    "importing": "Importing… {{done}}/{{total}}",
+    "imported": "{{count}} document(s) imported",
+    "failed": "{{name}}: {{error}}",
+    "formats": "PDF, JPEG, PNG or iPhone photos (HEIC) — 25 MB max per file. You can select several.",
+    "empty": "No imported documents",
+    "emptyText": "Import your past invoices: they will be filed in the client’s folder.",
+    "noFolders": "No folders yet",
+    "documents": "{{count}} document(s)",
+    "unpaid": "Outstanding (declared)",
+    "file": "File",
+    "number": "Number",
+    "date": "Date",
+    "amount": "Amount",
+    "status": "Status",
+    "paid": "Paid",
+    "unpaidStatus": "Unpaid",
+    "unknown": "Not specified",
+    "open": "Open",
+    "edit": "Complete details",
+    "delete": "Remove from folder",
+    "deleteConfirm": "Remove “{{name}}” from the folder? The file will be erased from the device.",
+    "infoTitle": "Document details",
+    "infoHelp": "All details are optional. They help you find the document and track what is still owed.",
+    "client": "Folder (client)",
+    "notes": "Notes",
+    "exportZip": "Export folder (ZIP)",
+    "zipImported": "Imported invoices",
+    "zipIssued": "Issued invoices",
+    "zipEmpty": "This folder is empty.",
+    "search": "Search folders…",
+    "importedOn": "imported on {{date}}"
   }
 }

@@ -137,7 +137,7 @@ export function ReceiptPage() {
     <>
       <div className="mb-3 flex items-center justify-between print:hidden">
         <Link to={`/c/${companyId}/payments`} className="inline-flex items-center gap-1 text-[13px] text-muted hover:text-fg"><ArrowLeft className="size-3.5" />{t('payment.title')}</Link>
-        <div className="flex gap-2"><PdfButtons href={`/api/v1/companies/${companyId}/receipts/${rc.id}/pdf`} /></div>
+        <div className="flex gap-2"><PdfButtons path={`/companies/${companyId}/receipts/${rc.id}/pdf`} /></div>
       </div>
       <Card className="relative mx-auto max-w-2xl print:border-0 print:shadow-none">
         {rc.status === 'void' && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><span className="-rotate-12 rounded-lg border-4 border-danger px-6 py-2 text-3xl font-bold text-danger opacity-70">{t('receipt.void')}</span></div>}

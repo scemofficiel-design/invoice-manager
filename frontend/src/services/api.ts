@@ -1,4 +1,9 @@
-import { API_PREFIX, CSRF_HEADER } from '@im/shared/constants';
+/**
+ * Accès aux données. L'application est 100 % locale : les « appels API » sont traités par le
+ * moteur local (local/runtime.ts) dans l'appareil, sans aucune requête réseau.
+ */
+import { API_PREFIX } from '@im/shared/constants';
+import { localApp } from '@/local/runtime';
 
 export class ApiError extends Error {
   constructor(
@@ -13,28 +18,25 @@ export class ApiError extends Error {
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
+async function call(method: Method, path: string, body?: unknown) {
+  const res = await localApp().inject(method, path.startsWith(API_PREFIX) ? path.slice(API_PREFIX.length) : path, body);
+  if (res.status >= 400) {
+    const e = (res.body as { error?: { code?: string; message?: string; details?: { path: string; message: string }[] } })?.error ?? {};
+    throw new ApiError(res.status, e.code ?? 'UNKNOWN', e.message ?? 'Erreur', e.details);
+  }
+  return res;
+}
+
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
-  let res: Response;
-  try {
-    res = await fetch(`${API_PREFIX}${path}`, {
-      method,
-      credentials: 'same-origin',
-      headers: {
-        ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
-        ...(method !== 'GET' ? { [CSRF_HEADER]: '1' } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-  } catch {
-    throw new ApiError(0, 'NETWORK', 'network');
-  }
-  if (res.status === 204) return undefined as T;
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const e = data?.error ?? {};
-    throw new ApiError(res.status, e.code ?? 'UNKNOWN', e.message ?? res.statusText, e.details);
-  }
-  return data as T;
+  // JSON aller-retour : les écrans reçoivent des copies, jamais les objets internes du moteur.
+  const res = await call(method, path, body === undefined ? undefined : JSON.parse(JSON.stringify(body)));
+  return (res.body === undefined ? undefined : JSON.parse(JSON.stringify(res.body))) as T;
+}
+
+export interface FileResult {
+  data: Uint8Array;
+  mime: string;
+  filename: string;
 }
 
 export const api = {
@@ -43,4 +45,10 @@ export const api = {
   put: <T>(p: string, b: unknown) => request<T>('PUT', p, b),
   patch: <T>(p: string, b: unknown) => request<T>('PATCH', p, b),
   del: <T = void>(p: string) => request<T>('DELETE', p),
+  /** Fichier binaire (PDF, logo). */
+  file: async (p: string): Promise<FileResult> => {
+    const res = await call('GET', p);
+    const disp = res.headers['content-disposition'] ?? '';
+    return { data: res.body as Uint8Array, mime: res.headers['content-type'] ?? 'application/octet-stream', filename: /filename="([^"]+)"/.exec(disp)?.[1] ?? 'document' };
+  },
 };

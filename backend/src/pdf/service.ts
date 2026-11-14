@@ -8,7 +8,7 @@ import { and, eq } from 'drizzle-orm';
 type Logger = { error: (obj: unknown, msg?: string) => void };
 import type { LegalId } from '@im/shared/types';
 import { transaction, type Connection, type DB } from '../database/tx';
-import { clients, companies, currencies, invoices, receipts, storedFiles } from '../database/schema';
+import { clients, companies, currencies, invoices, receipts } from '../database/schema';
 import { readStoredFile, safeFileName, storeFile } from '../modules/files/service';
 import { loadInvoice } from '../modules/invoices/routes';
 import { loadQuote } from '../modules/quotes/routes';
@@ -23,10 +23,10 @@ function minorUnits(db: DB, code: string) {
   return db.select({ m: currencies.minorUnits }).from(currencies).where(eq(currencies.code, code)).get()?.m ?? 2;
 }
 
-function logoDataUrl(db: DB, companyId: string, fileId: unknown): string | null {
+function logoDataUrl(conn: Connection, companyId: string, fileId: unknown): string | null {
   if (typeof fileId !== 'string') return null;
   try {
-    const f = readStoredFile(db, fileId, companyId);
+    const f = readStoredFile(conn, fileId, companyId);
     return `data:${f.mime};base64,${toBase64(f.content)}`;
   } catch {
     return null;
@@ -75,9 +75,9 @@ function parties(db: DB, companyId: string, doc: { companySnapshot: Snap | null;
 const safeName = safeFileName;
 
 /** Lit un PDF archivé dans la base (empreinte vérifiée par readStoredFile). */
-function readArchived(db: DB, companyId: string, fileId: string): Uint8Array | null {
+function readArchived(conn: Connection, companyId: string, fileId: string): Uint8Array | null {
   try {
-    return readStoredFile(db, fileId, companyId).content;
+    return readStoredFile(conn, fileId, companyId).content;
   } catch (e) {
     if ((e as { code?: string }).code === 'INTEGRITY_ERROR') throw e;
     return null;
@@ -104,7 +104,7 @@ export async function quotePdf(conn: Connection, companyId: string, id: string):
     minorUnits: minorUnits(conn.db, q.currency),
     seller: seller(company),
     buyer: buyer(client),
-    logo: logoDataUrl(conn.db, companyId, company.logoFileId),
+    logo: logoDataUrl(conn, companyId, company.logoFileId),
     lines: q.lines,
     subtotalMinor: q.subtotalMinor,
     discountMinor: q.discountMinor,
@@ -135,7 +135,7 @@ async function renderInvoice(conn: Connection, companyId: string, id: string) {
     minorUnits: minorUnits(conn.db, inv.currency),
     seller: seller(company),
     buyer: buyer(client),
-    logo: logoDataUrl(conn.db, companyId, company.logoFileId),
+    logo: logoDataUrl(conn, companyId, company.logoFileId),
     lines: inv.lines,
     subtotalMinor: inv.subtotalMinor,
     discountMinor: inv.discountMinor,
@@ -179,7 +179,7 @@ export async function invoicePdf(conn: Connection, companyId: string, id: string
   if (!row) throw notFound('Facture');
   if (row.status === 'issued') {
     const fileId = await ensureInvoiceArchived(conn, companyId, id);
-    const buf = fileId ? readArchived(conn.db, companyId, fileId) : null;
+    const buf = fileId ? readArchived(conn, companyId, fileId) : null;
     if (buf) return { buffer: buf, filename: `${safeName(row.number!)}.pdf`, archived: true };
   }
   const { buffer } = await renderInvoice(conn, companyId, id);
@@ -199,7 +199,7 @@ async function renderReceipt(conn: Connection, companyId: string, id: string) {
     minorUnits: minorUnits(conn.db, r.currency),
     seller: seller(snap.company),
     buyer: buyer(snap.client),
-    logo: logoDataUrl(conn.db, companyId, snap.company.logoFileId),
+    logo: logoDataUrl(conn, companyId, snap.company.logoFileId),
     invoiceNumber: snap.invoice.number,
     invoiceDate: snap.invoice.issueDate,
     invoiceTotalMinor: snap.invoice.totalMinor,
@@ -236,7 +236,7 @@ export async function receiptPdf(conn: Connection, companyId: string, id: string
   if (!row) throw notFound('Reçu');
   if (row.status === 'valid') {
     const fileId = await ensureReceiptArchived(conn, companyId, id);
-    const buf = fileId ? readArchived(conn.db, companyId, fileId) : null;
+    const buf = fileId ? readArchived(conn, companyId, fileId) : null;
     if (buf) return { buffer: buf, filename: `${safeName(row.number)}.pdf`, archived: true };
   }
   const { buffer } = await renderReceipt(conn, companyId, id);

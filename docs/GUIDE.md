@@ -2,8 +2,8 @@
 
 ## 1. Premiers pas
 
-1. Lancez l'application (double-clic sur `Invoice Manager.command`).
-2. Créez le **compte propriétaire** : nom de l'organisation, votre nom, adresse, mot de passe (10 caractères minimum, lettres et chiffres).
+1. Ouvrez l'application dans Safari, puis **Partager → Sur l'écran d'accueil**, et lancez-la depuis son icône.
+2. Indiquez le nom de votre organisation et votre nom. Il n'y a ni compte ni mot de passe : le verrouillage de votre iPhone protège l'accès.
 3. Créez votre première **entreprise** : raison sociale, devise principale, et un **préréglage fiscal** (TPS+TVQ, TVH, TVA France, TVA UEMOA ou aucune taxe). Les taux restent modifiables ; faites-les valider par votre comptable.
 4. Dans **Paramètres** de l'entreprise : logo, coordonnées bancaires, conditions par défaut, pied de page légal, numéros d'inscription des taxes (ils apparaissent sur les factures).
 
@@ -37,10 +37,11 @@ Chaque entreprise est **totalement isolée** : clients, catalogue, documents et 
 
 ## 6. PDF
 
-Boutons **Aperçu PDF** (s'ouvre dans le navigateur, d'où vous pouvez imprimer) et **Télécharger**.
-Les PDF des factures émises et des reçus sont archivés dans le dossier de données
-(`documents/companies/<entreprise>/invoices/<année>/`). Le PDF archivé est l'original : il est resservi
-à l'identique et son intégrité est vérifiée à chaque ouverture.
+Sur iPhone, le bouton **PDF** ouvre la feuille de partage d'iOS : aperçu, Imprimer, Enregistrer dans
+Fichiers (iCloud Drive), Mail, AirDrop. Sur ordinateur : **Aperçu** et **Télécharger**.
+Les PDF des factures émises et des reçus sont archivés dans la base de l'appareil au moment de
+l'émission ou du paiement. Le PDF archivé est l'original : il est resservi à l'identique et son
+intégrité est vérifiée à chaque ouverture.
 
 ## 7. Tableaux de bord et recherche
 
@@ -48,16 +49,15 @@ Les PDF des factures émises et des reçus sont archivés dans le dossier de don
 - **Vue d'ensemble** d'une entreprise : chiffre d'affaires HT, encaissé, en attente, en retard, évolution mensuelle, meilleurs clients, taxes facturées, sur la période choisie.
 - **Recherche globale** : `⌘K` (ou le champ « Rechercher ») trouve clients, factures, devis, articles et références de paiement, sans tenir compte des accents.
 
-## 8. Utilisateurs et accès
+## 8. Sauvegardes et restauration
 
-Le propriétaire crée des utilisateurs (**Administration → Utilisateurs**) et leur donne accès entreprise par entreprise (**Paramètres → Accès**) : *Lecteur* (consultation), *Éditeur* (clients, catalogue, documents, paiements), *Administrateur* (paramètres, annulations).
+Vos données ne sont **que sur cet iPhone**. Supprimer l'icône de l'écran d'accueil ou effacer les données de Safari les efface.
 
-## 9. Sauvegardes et restauration
+- **Administration → Sauvegardes → Exporter une sauvegarde** : un fichier `.sqlite` contenant tout (PDF compris) est créé ; choisissez « Enregistrer dans Fichiers » puis iCloud Drive. Un rappel s'affiche si la dernière sauvegarde date de plus de 7 jours.
+- **Choisir un fichier de sauvegarde** : le fichier est vérifié, son contenu est affiché, puis il remplace les données actuelles après confirmation.
+- **Annuler la dernière restauration** remet les données d'avant.
+- Changer d'iPhone : exportez sur l'ancien, installez l'application sur le nouveau, restaurez le fichier.
 
-- **Administration → Sauvegardes** : sauvegarder maintenant, exporter une archive complète (base + PDF), choisir le dossier d'export (idéalement un disque externe) et la durée de conservation.
-- **Restaurer** : choisissez une sauvegarde, retapez son nom pour confirmer. L'état actuel est d'abord sauvegardé automatiquement ; vous devrez ensuite vous reconnecter.
-- En ligne de commande (application arrêtée) : `npm run restore -- <nom-ou-archive.tar.gz>`.
-
-## 10. Journal
+## 9. Journal
 
 **Administration → Journal** : historique non modifiable de toutes les opérations (connexions, créations, émissions, annulations, paiements, sauvegardes, restaurations).

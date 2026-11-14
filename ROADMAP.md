@@ -97,6 +97,13 @@ Livré le 2026-11-09 : sauvegardes (rotation GFS, contrôle d'espace, export .ta
 
 ---
 
+## V2 — Application 100 % iPhone ☑ (2026-11-14)
+
+- Noyau métier rendu indépendant de Node et exécuté dans le navigateur (SQLite WebAssembly).
+- Données uniquement sur l'appareil ; PDF et sauvegardes via la feuille de partage iOS.
+- Application installable sur l'écran d'accueil, hors connexion, publiée sur GitHub Pages par GitHub Actions.
+- Retirés : serveur Mac, lanceur, comptes et multi-utilisateurs, sauvegardes serveur.
+
 ## Après la V1 (non planifié)
 
 - Notes de crédit / avoirs, remboursements, trop-perçus

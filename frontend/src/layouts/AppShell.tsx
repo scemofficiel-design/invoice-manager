@@ -1,11 +1,12 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { CommandPalette } from '@/components/CommandPalette';
+import { useLogoUrl } from '@/hooks/useLogo';
+import { BackupReminder } from '@/modules/admin/BackupsPage';
 import { Link, NavLink, Outlet, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
 import {
-  Building2, ChevronsUpDown, DatabaseBackup, FileCheck2, Package, Wallet, Coins, FileText, Hash, History, Home, Layers, LayoutDashboard, LogOut, Menu as MenuIcon,
-  Monitor, Moon, Percent, Plus, Search, Settings, Sun, UserCog, Users, X,
+  Building2, ChevronsUpDown, DatabaseBackup, FileCheck2, Package, Wallet, Coins, FileText, Hash, History, Home, Layers, LayoutDashboard, Menu as MenuIcon,
+  Monitor, Moon, Percent, Plus, Search, Settings, Sun, Users, X,
 } from 'lucide-react';
 import { useMe } from '@/contexts/session';
 import { applyTheme, currentTheme, type Theme } from '@/contexts/theme';
@@ -40,8 +41,9 @@ const Section = ({ label, children }: { label: string; children: ReactNode }) =>
 );
 
 function CompanyLogo({ id, name, hasLogo, size = 'size-6' }: { id: string; name: string; hasLogo: boolean; size?: string }) {
-  return hasLogo ? (
-    <img src={`/api/v1/companies/${id}/logo`} alt="" className={cn(size, 'rounded-md border border-border bg-white object-contain')} />
+  const url = useLogoUrl(id, hasLogo);
+  return url ? (
+    <img src={url} alt="" className={cn(size, 'rounded-md border border-border bg-white object-contain')} />
   ) : (
     <span className={cn(size, 'flex items-center justify-center rounded-md bg-accent-soft text-[11px] font-semibold text-accent')}>{name.slice(0, 1).toUpperCase()}</span>
   );
@@ -52,7 +54,6 @@ export function AppShell() {
   const me = useMe();
   const { companyId } = useParams();
   const navigate = useNavigate();
-  const qc = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(currentTheme());
   const current = me.companies.find((c) => c.id === companyId);
@@ -75,20 +76,11 @@ export function AppShell() {
     applyTheme(th);
     void api.patch('/auth/preferences', { theme: th });
   };
-  const logout = async () => {
-    try {
-      await api.post('/auth/logout');
-    } finally {
-      // Rechargement complet : aucune donnée de la session précédente ne reste en mémoire.
-      qc.clear();
-      window.location.replace('/login');
-    }
-  };
 
   const sidebar = (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
-        <img src="/favicon.svg" alt="" className="size-7" />
+        <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-7" />
         <div className="min-w-0">
           <p className="truncate text-[13px] font-semibold">{t('app.name')}</p>
           <p className="truncate text-xs text-muted">{me.organization.name}</p>
@@ -143,14 +135,12 @@ export function AppShell() {
               <NavItem to={`/c/${current.id}/settings/activities`} icon={<Layers />} onClick={close}>{t('nav.activities')}</NavItem>
               <NavItem to={`/c/${current.id}/settings/taxes`} icon={<Percent />} onClick={close}>{t('nav.taxes')}</NavItem>
               <NavItem to={`/c/${current.id}/settings/numbering`} icon={<Hash />} onClick={close}>{t('nav.numbering')}</NavItem>
-              {current.role === 'admin' && <NavItem to={`/c/${current.id}/settings/members`} icon={<UserCog />} onClick={close}>{t('nav.members')}</NavItem>}
             </Section>
           </>
         )}
         {isOwner && (
           <Section label={t('nav.admin')}>
             <NavItem to="/admin/currencies" icon={<Coins />} onClick={close}>{t('nav.currencies')}</NavItem>
-            <NavItem to="/admin/users" icon={<UserCog />} onClick={close}>{t('nav.users')}</NavItem>
             <NavItem to="/admin/backups" icon={<DatabaseBackup />} onClick={close}>{t('nav.backups')}</NavItem>
             <NavItem to="/admin/audit" icon={<History />} onClick={close}>{t('nav.audit')}</NavItem>
           </Section>
@@ -173,8 +163,6 @@ export function AppShell() {
             {([['light', Sun], ['dark', Moon], ['system', Monitor]] as const).map(([th, Icon]) => (
               <MenuItem key={th} onSelect={() => changeTheme(th)} className={theme === th ? 'text-accent' : ''}><Icon />{t(`nav.${th}`)}</MenuItem>
             ))}
-            <MenuSeparator />
-            <MenuItem onSelect={() => void logout()}><LogOut />{t('nav.logout')}</MenuItem>
           </MenuContent>
         </Menu>
       </div>
@@ -204,6 +192,7 @@ export function AppShell() {
           </header>
           <main className="min-h-0 flex-1 overflow-y-auto">
             <div className="mx-auto w-full max-w-5xl px-4 py-6 sm:px-8 sm:py-8">
+              <BackupReminder />
               <Outlet />
             </div>
           </main>

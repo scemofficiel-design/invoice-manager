@@ -14,6 +14,7 @@ import { useConfirm } from '@/contexts/confirm';
 import { Button } from '@/components/ui/button';
 import { Badge, Card, CardBody, CardHeader, PageHeader, Skeleton } from '@/components/ui/card';
 import { CompanyForm } from './CompanyForm';
+import { useLogoUrl } from '@/hooks/useLogo';
 import { CompanyDashboard } from '@/modules/dashboard/pages';
 
 export function NewCompanyPage() {
@@ -87,11 +88,10 @@ function LogoCard({ company }: { company: Company }) {
   const onError = useToastError();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [version, setVersion] = useState(0);
+  const logoUrl = useLogoUrl(company.id, company.hasLogo);
   const after = async () => {
     await qc.invalidateQueries({ queryKey: qk.company(company.id) });
     await refresh();
-    setVersion((v) => v + 1);
   };
   const upload = async (file: File) => {
     if (file.size > 2 * 1024 * 1024) return toast.error(t('company.logoHint'));
@@ -117,7 +117,7 @@ function LogoCard({ company }: { company: Company }) {
       <CardHeader title={t('company.logo')} description={t('company.logoHint')} />
       <CardBody className="flex flex-wrap items-center gap-4">
         <div className="flex size-20 items-center justify-center overflow-hidden rounded-lg border border-border bg-white">
-          {company.hasLogo ? <img src={`/api/v1/companies/${company.id}/logo?v=${version}`} alt={t('company.logo')} className="max-h-full max-w-full object-contain" /> : <ImageUp className="size-6 text-subtle" />}
+          {logoUrl ? <img src={logoUrl} alt={t('company.logo')} className="max-h-full max-w-full object-contain" /> : <ImageUp className="size-6 text-subtle" />}
         </div>
         <input ref={input} type="file" accept="image/png,image/jpeg" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void upload(f); }} />
         <Button variant="secondary" loading={busy} onClick={() => input.current?.click()}><ImageUp />{t('company.uploadLogo')}</Button>

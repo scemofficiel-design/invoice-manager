@@ -126,7 +126,7 @@ export function QuoteViewPage() {
             {s === 'sent' && <Button variant="secondary" loading={busy === 'refuse'} onClick={() => void act('refuse')}><X />{t('quote.refuse')}</Button>}
             {s === 'accepted' && !q.invoiceId && <Button loading={busy === 'convert'} disabled={busy === 'convert'} onClick={() => void act('convert')}><FileInput />{t('quote.convert')}</Button>}
             {q.invoiceId && <Button variant="secondary" asChild><Link to={`/c/${companyId}/invoices/${q.invoiceId}`}><FileText />{t('quote.viewInvoice')}</Link></Button>}
-            <PdfButtons href={`/api/v1/companies/${companyId}/quotes/${q.id}/pdf`} />
+            <PdfButtons path={`/companies/${companyId}/quotes/${q.id}/pdf`} />
             <Button variant="secondary" loading={busy === 'duplicate'} onClick={() => void act('duplicate')}><Copy />{t('common.duplicate')}</Button>
             {['draft', 'sent', 'accepted'].includes(s) && !q.invoiceId && <Button variant="ghost" loading={busy === 'cancel'} onClick={() => void act('cancel')}><Ban />{t('quote.cancel')}</Button>}
           </div>

@@ -22,10 +22,14 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type { LegalId } from '@im/shared/types';
 
+const isNode = typeof process !== 'undefined' && !!process.versions?.node && !('document' in globalThis);
+
 /** BLOB portable : Uint8Array côté application (sql.js), Buffer converti pour better-sqlite3. */
 const bytes = customType<{ data: Uint8Array; driverData: Uint8Array }>({
   dataType: () => 'blob',
-  toDriver: (v) => (typeof globalThis.Buffer !== 'undefined' ? globalThis.Buffer.from(v) : v),
+  // better-sqlite3 (Node) exige un Buffer. Dans le navigateur, on ne se fie pas à `Buffer` :
+  // certaines bibliothèques (pdfmake) en installent une imitation globale incompatible avec sql.js.
+  toDriver: (v) => (isNode ? globalThis.Buffer.from(v) : v),
   fromDriver: (v) => (v instanceof Uint8Array ? v : new Uint8Array(v as ArrayBuffer)),
 });
 

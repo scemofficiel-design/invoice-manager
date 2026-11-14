@@ -1,82 +1,61 @@
 # Invoice Manager
 
-Logiciel **local** de gestion commerciale et de facturation multi-entreprises : clients, catalogue,
-devis, factures, paiements, reçus, PDF, tableaux de bord, sauvegardes. Aucune donnée n'est envoyée
-à un service externe.
+Gestion commerciale et facturation multi-entreprises **pour iPhone** : clients, catalogue, devis,
+factures, paiements, reçus, PDF, tableaux de bord, recherche.
 
-- Guide d'utilisation : [docs/GUIDE.md](docs/GUIDE.md)
-- Conception technique : [ARCHITECTURE.md](ARCHITECTURE.md) · Avancement : [ROADMAP.md](ROADMAP.md)
+**Toutes les données restent sur l'appareil.** GitHub ne sert qu'à héberger l'application (le code) ;
+aucune facture, aucun client ni aucun PDF n'est jamais envoyé sur Internet.
 
-## Installation
+**Application** : https://scemofficiel-design.github.io/invoice-manager/
 
-Prérequis : **Node.js 22 ou plus récent** (développé avec Node 24) et npm. Aucun autre logiciel.
+## Installer sur l'iPhone
 
-```bash
-npm install
-```
+1. Ouvrez le lien ci-dessus dans **Safari**.
+2. Touchez **Partager** → **Sur l'écran d'accueil**.
+3. Lancez l'application depuis son icône **avant** de saisir vos données (Safari et l'application
+   installée ont des stockages séparés).
 
-## Démarrer
+L'application fonctionne ensuite **hors connexion**.
 
-| Méthode | Effet |
-|---|---|
-| Double-clic sur **`Invoice Manager.command`** (Finder) | Installe si besoin, compile, démarre, ouvre le navigateur. Fermer la fenêtre arrête l'application. |
-| `npm start` | Idem en ligne de commande (http://127.0.0.1:4300). `npm start -- --no-open` pour ne pas ouvrir le navigateur. |
-| `npm run make-app` | Crée **Invoice Manager.app** (à glisser dans le Dock ou Applications). À relancer si le dossier du projet est déplacé. |
-| `npm run demo` | Version de **démonstration** sur une base séparée, avec bandeau « DÉMO ». Identifiant `demo@demo.invoice-manager.test`, mot de passe `demo-invoice-2026`. |
+## Créer des fichiers sur le téléphone
 
-Au premier lancement, l'application demande de créer le **compte propriétaire** (il n'existe aucun mot de passe par défaut).
+- **PDF** (devis, factures, reçus) : bouton « PDF » → feuille de partage d'iOS : aperçu, Imprimer,
+  Enregistrer dans Fichiers / iCloud Drive, Mail, AirDrop.
+- **Sauvegarde** : Administration → Sauvegardes → « Exporter une sauvegarde » crée un fichier `.sqlite`
+  contenant tout (PDF compris). Enregistrez-le dans iCloud Drive. « Choisir un fichier de sauvegarde »
+  restaure ; « Annuler la dernière restauration » revient en arrière.
 
-## Commandes
+⚠️ Supprimer l'icône de l'écran d'accueil ou effacer les données de Safari efface aussi les données
+de l'application : **exportez une sauvegarde régulièrement** (un rappel s'affiche après 7 jours).
+
+## Mettre à jour l'application
+
+Chaque `git push` sur `main` déclenche [la publication automatique](.github/workflows/pages.yml) :
+vérification des types, tests, compilation, mise en ligne sur GitHub Pages. L'iPhone récupère la
+nouvelle version au lancement suivant ; les données sur l'appareil sont conservées (le schéma de la
+base est mis à jour automatiquement).
+
+## Développement
+
+Prérequis : Node.js 22+ et npm.
 
 | Commande | Effet |
 |---|---|
-| `npm run dev` | Développement : API (127.0.0.1:4310) + interface avec rechargement à chaud (http://127.0.0.1:5173), profil **dev** |
-| `npm run build` | Compile l'interface et le serveur |
-| `npm test` | Tests unitaires et d'intégration (Vitest) |
-| `npm run test:e2e` | Parcours de bout en bout dans Chromium (Playwright), sur une base jetable |
+| `npm install` | Installe les dépendances |
+| `npm run dev` | Application en développement (http://127.0.0.1:5173) |
+| `npm run build` | Compile l'application (`BASE_PATH=/invoice-manager/` pour GitHub Pages) |
+| `npm test` | Tests unitaires et d'intégration du noyau métier (Vitest) |
+| `npm run test:e2e` | Parcours complet dans Chromium, compilé comme sur GitHub Pages (Playwright) |
 | `npm run typecheck` | Vérification TypeScript stricte |
-| `npm run backup` | Sauvegarde cohérente de la base (sûre pendant l'utilisation) |
-| `npm run backup -- --export [dossier]` | Export complet `.tar.gz` (base + PDF) — par exemple vers un disque externe |
-| `npm run restore` | Liste les sauvegardes ; `npm run restore -- <nom \| archive.tar.gz>` restaure (application arrêtée) |
-| `npm run reset-password -- email@exemple` | Génère un mot de passe temporaire pour un utilisateur |
 
-Les commandes s'appliquent au profil **prod** ; préfixez par `IM_PROFILE=demo` ou `IM_PROFILE=dev` pour un autre profil.
+## Organisation du code
 
-## Où sont mes données ?
-
-Hors du code source (elles survivent aux mises à jour), dans `~/Library/Application Support/` :
-
-| Dossier | Profil |
+| Dossier | Rôle |
 |---|---|
-| `InvoiceManager/` | données réelles (`npm start`, lanceur) |
-| `InvoiceManager-dev/` | développement (`npm run dev`) |
-| `InvoiceManager-demo/` | démonstration (`npm run demo`) |
+| `shared/` | Calcul exact des montants et des taxes, schémas de validation, statuts, traductions |
+| `backend/src/` | Noyau métier : règles (numérotation, factures figées, paiements…), schéma SQLite, modèles PDF. Exécuté **dans le navigateur** par l'application ; exposé aussi par un banc de test Node pour les tests d'intégration |
+| `backend/migrations/` | Évolutions du schéma de la base (appliquées automatiquement sur l'appareil) |
+| `frontend/src/local/` | Moteur local : SQLite (WebAssembly), stockage sur l'appareil, sauvegardes, PDF |
+| `frontend/src/` | Interface (React) |
 
-Chaque dossier contient `data/` (base SQLite), `documents/` (PDF archivés des factures émises et des
-reçus), `backups/` (sauvegardes) et `exports/`. Variable `INVOICE_MANAGER_DATA_DIR` pour un autre emplacement.
-
-**Sauvegardes** : automatiques au démarrage puis toutes les 24 h (7 quotidiennes, 4 hebdomadaires,
-12 mensuelles), avant chaque mise à jour de la base et avant chaque restauration. Elles sont sur le
-même disque que les données : exportez régulièrement vers un disque externe (Administration →
-Sauvegardes → Exporter) et activez Time Machine.
-
-## Sécurité
-
-- Écoute uniquement sur `127.0.0.1` ; le mode réseau local est désactivé.
-- Mots de passe chiffrés (scrypt), sessions expirantes, protection CSRF, limitation des tentatives de connexion.
-- Fichiers de données accessibles uniquement à votre compte macOS.
-- Factures émises, paiements et journal d'audit protégés contre la modification **au niveau de la base**.
-
-## Mise à jour
-
-Remplacez le code (ou `git pull`), puis `npm install` et relancez : les migrations de la base sont
-appliquées automatiquement, après une sauvegarde de sécurité.
-
-## Dépannage
-
-| Symptôme | Solution |
-|---|---|
-| « Invoice Manager est déjà en cours d'exécution » | Une autre fenêtre l'exécute déjà ; fermez-la. |
-| Page blanche après une mise à jour | Relancez l'application (le serveur ne voit les nouveaux fichiers qu'au démarrage). |
-| Mot de passe oublié | `npm run reset-password -- votre@adresse` |
-| « Espace disque insuffisant » | Libérez de l'espace (au moins 200 Mo) ; `npm cache clean --force` libère souvent plusieurs Go. |
+Conception détaillée : [ARCHITECTURE.md](ARCHITECTURE.md) · Guide d'utilisation : [docs/GUIDE.md](docs/GUIDE.md).

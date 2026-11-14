@@ -3,7 +3,7 @@
  * vérifiée à chaque lecture. Une seule sauvegarde de la base contient donc tout.
  */
 import { and, eq } from 'drizzle-orm';
-import type { DB } from '../../database/tx';
+import type { Connection, DB } from '../../database/tx';
 import { storedFiles } from '../../database/schema';
 import { AppError, badRequest, notFound } from '../../utils/errors';
 import { fromBase64, sha256Hex } from '../../utils/bytes';
@@ -50,12 +50,22 @@ export function storeFile(
   return id;
 }
 
-/** Lit un fichier de l'entreprise et vérifie son intégrité. */
-export function readStoredFile(db: DB, fileId: string, companyId: string): { mime: string; content: Uint8Array } {
-  const f = db.select().from(storedFiles).where(and(eq(storedFiles.id, fileId), eq(storedFiles.companyId, companyId))).get();
-  if (!f || !f.content) throw notFound('Fichier');
-  if (sha256Hex(f.content) !== f.sha256) throw new AppError(500, 'INTEGRITY_ERROR', 'Le fichier archivé a été modifié (empreinte invalide)');
-  return { mime: f.mime, content: f.content };
+/**
+ * Lit un fichier de l'entreprise et vérifie son intégrité.
+ * Le contenu binaire est lu directement par SQLite : le pilote sql.js de Drizzle convertit les
+ * BLOB en texte dans le navigateur, ce qui corromprait les fichiers.
+ */
+export function readStoredFile(conn: Connection, fileId: string, companyId: string): { mime: string; content: Uint8Array } {
+  const f = conn.db
+    .select({ mime: storedFiles.mime, sha256: storedFiles.sha256 })
+    .from(storedFiles)
+    .where(and(eq(storedFiles.id, fileId), eq(storedFiles.companyId, companyId)))
+    .get();
+  const row = conn.sqlite.prepare('SELECT content FROM stored_files WHERE id = ? AND company_id = ?').get(fileId, companyId) as { content: Uint8Array | null } | undefined;
+  if (!f || !row?.content) throw notFound('Fichier');
+  const content = new Uint8Array(row.content);
+  if (sha256Hex(content) !== f.sha256) throw new AppError(500, 'INTEGRITY_ERROR', 'Le fichier archivé a été modifié (empreinte invalide)');
+  return { mime: f.mime, content };
 }
 
 export const safeFileName = (s: string) => s.replace(/[^A-Za-z0-9._-]/g, '_');

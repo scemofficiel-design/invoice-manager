@@ -1,143 +1,174 @@
-import { useState, type FormEvent } from 'react';
+import { useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
-import { Archive, DatabaseBackup, HardDriveDownload, History, TriangleAlert } from 'lucide-react';
-import { api } from '@/services/api';
-import { useErrorMessage, useToastError } from '@/hooks/useApiError';
+import { DatabaseBackup, FolderOpen, ShieldCheck, TriangleAlert, Undo2 } from 'lucide-react';
+import { auditBackup, exportBytes, flush, inspectBackup, restoreBackup, type BackupCheck } from '@/local/runtime';
+import { isPersisted, kvGet, kvSet, requestPersistence } from '@/local/store';
+import { saveFile } from '@/lib/files';
+import { useSession } from '@/contexts/session';
+import { useConfirm } from '@/contexts/confirm';
 import { formatDateTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader, Skeleton, Table } from '@/components/ui/card';
+import { Card, CardBody, CardHeader, PageHeader } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
-import { Field, Input } from '@/components/ui/input';
 
-interface Manifest { createdAt: string; reason: 'manual' | 'auto' | 'pre-migration' | 'pre-restore'; size: number; counts: Record<string, number> }
-interface BackupsInfo {
-  backups: { name: string; manifest: Manifest | null }[];
-  dataDir: string; backupsDir: string; documentsDir: string; exportDir: string; freeBytes: number;
-  retention: { daily: number; weekly: number; monthly: number };
+const LAST_EXPORT = 'lastExportAt';
+const REMIND_AFTER_DAYS = 7;
+const size = (b: number) => (b > 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} Mo` : `${Math.ceil(b / 1024)} Ko`);
+const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+function useBackupStatus() {
+  return useQuery({
+    queryKey: ['local', 'backup-status'],
+    queryFn: async () => ({
+      lastExportAt: (await kvGet<string>(LAST_EXPORT)) ?? null,
+      persisted: await isPersisted(),
+      hasPreviousState: !!(await kvGet<Uint8Array>('db-before-restore')),
+    }),
+  });
 }
 
-const size = (b: number) => (b > 1024 ** 3 ? `${(b / 1024 ** 3).toFixed(1)} Go` : b > 1024 ** 2 ? `${(b / 1024 ** 2).toFixed(1)} Mo` : `${Math.ceil(b / 1024)} Ko`);
+/** Exporte toute la base (PDF archivés compris) vers un fichier : Fichiers, iCloud Drive, AirDrop… */
+export async function exportBackup(): Promise<boolean> {
+  await flush();
+  const bytes = exportBytes();
+  const name = `invoice-manager-sauvegarde-${new Date().toISOString().slice(0, 10)}.sqlite`;
+  const r = await saveFile(bytes, name, 'application/octet-stream', 'Sauvegarde Invoice Manager');
+  if (r === 'cancelled') return false;
+  await kvSet(LAST_EXPORT, new Date().toISOString());
+  auditBackup('backup_export', `Sauvegarde exportée (${size(bytes.length)})`);
+  return true;
+}
+
+/** Bandeau de rappel quand aucune sauvegarde n'a été exportée récemment. */
+export function BackupReminder() {
+  const { t } = useTranslation();
+  const { me } = useSession();
+  const location = useLocation();
+  const status = useBackupStatus();
+  if (!status.data || !me?.companies.length || location.pathname.endsWith('/backups')) return null;
+  const last = status.data.lastExportAt ? Date.parse(status.data.lastExportAt) : 0;
+  if (Date.now() - last < REMIND_AFTER_DAYS * 86_400_000) return null;
+  return (
+    <Link to="/admin/backups" className="mb-5 flex items-start gap-2 rounded-lg bg-warning-soft px-3 py-2.5 text-[13px] text-warning">
+      <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+      <span>{last ? t('backup.reminderOld', { days: Math.floor((Date.now() - last) / 86_400_000) }) : t('backup.reminderNever')} <u>{t('backup.exportNow')}</u></span>
+    </Link>
+  );
+}
 
 export function BackupsPage() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const onError = useToastError();
-  const msg = useErrorMessage();
-  const info = useQuery({ queryKey: ['admin', 'backups'], queryFn: () => api.get<BackupsInfo>('/admin/backups') });
+  const confirm = useConfirm();
+  const status = useBackupStatus();
+  const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [restoring, setRestoring] = useState<string | null>(null);
-  const [confirmText, setConfirmText] = useState('');
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-  const [settings, setSettings] = useState<{ exportDir: string; daily: string; weekly: string; monthly: string } | null>(null);
-  const d = info.data;
-  const s = settings ?? (d ? { exportDir: d.exportDir === `${d.dataDir}/exports` ? '' : d.exportDir, daily: String(d.retention.daily), weekly: String(d.retention.weekly), monthly: String(d.retention.monthly) } : null);
+  const [pending, setPending] = useState<{ bytes: Uint8Array; name: string; check: BackupCheck } | null>(null);
+  const dbSize = (() => {
+    try {
+      return exportBytes().length;
+    } catch {
+      return 0;
+    }
+  })();
 
-  const run = async (key: string, fn: () => Promise<void>) => {
-    setBusy(key);
+  const doExport = async () => {
+    setBusy('export');
     try {
-      await fn();
-      await qc.invalidateQueries({ queryKey: ['admin', 'backups'] });
+      if (await exportBackup()) toast.success(t('backup.exported'));
+      await qc.invalidateQueries({ queryKey: ['local'] });
     } catch (e) {
-      onError(e);
+      toast.error((e as Error).message);
     } finally {
       setBusy(null);
     }
   };
-  const doRestore = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!restoring) return;
-    setBusy('restore');
-    setRestoreError(null);
+  const pick = async (file: File) => {
     try {
-      await api.post(`/admin/backups/${encodeURIComponent(restoring)}/restore`, { confirm: confirmText });
-      toast.success(t('backup.restored'));
-      qc.clear();
-      window.location.replace('/login');
-    } catch (err) {
-      setRestoreError(msg(err));
-    } finally {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      setPending({ bytes, name: file.name, check: await inspectBackup(bytes) });
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+  const doRestore = async () => {
+    if (!pending) return;
+    setBusy('restore');
+    try {
+      await restoreBackup(pending.bytes);
+      window.location.reload();
+    } catch (e) {
+      toast.error((e as Error).message);
       setBusy(null);
     }
   };
-  const saveSettings = (e: FormEvent) => {
-    e.preventDefault();
-    if (!s) return;
-    void run('settings', async () => {
-      await api.patch('/admin/backup-settings', { exportDir: s.exportDir.trim() || null, daily: Number(s.daily), weekly: Number(s.weekly), monthly: Number(s.monthly) });
-      setSettings(null);
-      toast.success(t('common.saved'));
-    });
+  const undoRestore = async () => {
+    if (!(await confirm({ title: t('backup.undoRestore'), message: t('backup.undoRestoreHelp'), confirmLabel: t('backup.undoRestore'), danger: true }))) return;
+    const prev = await kvGet<Uint8Array>('db-before-restore');
+    if (!prev) return;
+    setBusy('undo');
+    try {
+      await restoreBackup(prev);
+      window.location.reload();
+    } catch (e) {
+      toast.error((e as Error).message);
+      setBusy(null);
+    }
   };
+  const s = status.data;
 
   return (
     <>
-      <PageHeader
-        title={t('backup.title')}
-        description={t('backup.subtitle')}
-        actions={<>
-          <Button variant="secondary" loading={busy === 'export'} onClick={() => run('export', async () => { const r = await api.post<{ file: string }>('/admin/backups/export'); toast.success(t('backup.exported', { file: r.file })); })}><HardDriveDownload />{t('backup.export')}</Button>
-          <Button loading={busy === 'create'} onClick={() => run('create', async () => { await api.post('/admin/backups'); toast.success(t('backup.created')); })}><DatabaseBackup />{t('backup.create')}</Button>
-        </>}
-      />
-      <p className="mb-5 flex items-start gap-2 rounded-md bg-warning-soft px-3 py-2 text-[13px] text-warning"><TriangleAlert className="mt-0.5 size-4 shrink-0" />{t('backup.sameDisk')}</p>
-      {!d ? <Skeleton className="h-60" /> : (
-        <>
-          <Card>
-            {!d.backups.length ? <EmptyState icon={<Archive />} title={t('backup.empty')} /> : (
-              <Table>
-                <thead><tr><th>{t('common.date')}</th><th>{t('common.status')}</th><th className="hidden sm:table-cell">{t('backup.contents')}</th><th className="hidden text-right sm:table-cell">{t('backup.size')}</th><th /></tr></thead>
-                <tbody>{d.backups.map((b) => (
-                  <tr key={b.name}>
-                    <td><p className="font-medium">{b.manifest ? formatDateTime(b.manifest.createdAt) : b.name}</p><p className="font-mono text-[11px] text-subtle">{b.name}</p></td>
-                    <td>{b.manifest ? <Badge tone={b.manifest.reason === 'manual' ? 'accent' : 'neutral'}>{t(`backup.reason.${b.manifest.reason}`)}</Badge> : <Badge tone="danger">?</Badge>}</td>
-                    <td className="hidden text-muted sm:table-cell">{b.manifest ? `${b.manifest.counts.companies ?? 0} ${t('dashboard.companies').toLowerCase()} · ${b.manifest.counts.invoices ?? 0} ${t('backup.invoices')}` : '—'}</td>
-                    <td className="tabular hidden text-right text-muted sm:table-cell">{b.manifest ? size(b.manifest.size) : '—'}</td>
-                    <td className="text-right">{b.manifest && <Button variant="ghost" size="sm" onClick={() => { setRestoring(b.name); setConfirmText(''); setRestoreError(null); }}><History />{t('backup.restore')}</Button>}</td>
-                  </tr>
-                ))}</tbody>
-              </Table>
+      <PageHeader title={t('backup.title')} description={t('backup.subtitle')} />
+      <div className="grid gap-5">
+        <Card>
+          <CardBody className="space-y-4">
+            <div className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent-soft text-accent"><DatabaseBackup className="size-5" /></span>
+              <div className="text-[13px]">
+                <p className="font-medium">{t('backup.lastExport')}</p>
+                <p className="text-muted">{s?.lastExportAt ? formatDateTime(s.lastExportAt) : t('backup.never')} · {t('backup.size')} {size(dbSize)}</p>
+              </div>
+            </div>
+            <Button className="w-full sm:w-auto" loading={busy === 'export'} onClick={() => void doExport()}><DatabaseBackup />{t('backup.export')}</Button>
+            <p className="text-xs text-muted">{t('backup.exportHelp')}</p>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title={t('backup.restoreTitle')} description={t('backup.restoreSubtitle')} />
+          <CardBody className="flex flex-wrap gap-2">
+            <input ref={input} type="file" accept=".sqlite,.db,application/octet-stream,application/x-sqlite3,application/vnd.sqlite3" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void pick(f); }} />
+            <Button variant="secondary" onClick={() => input.current?.click()}><FolderOpen />{t('backup.chooseFile')}</Button>
+            {s?.hasPreviousState && <Button variant="ghost" loading={busy === 'undo'} onClick={() => void undoRestore()}><Undo2 />{t('backup.undoRestore')}</Button>}
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader title={t('backup.whereTitle')} />
+          <CardBody className="space-y-2 text-[13px]">
+            <p className="flex items-start gap-2"><ShieldCheck className="mt-0.5 size-4 shrink-0 text-success" />{t('backup.whereText')}</p>
+            {!isStandalone() && <p className="flex items-start gap-2 text-warning"><TriangleAlert className="mt-0.5 size-4 shrink-0" />{t('backup.installHint')}</p>}
+            {s && !s.persisted && (
+              <p className="flex items-start gap-2 text-muted">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                <span>{t('backup.notPersisted')} <button className="underline" onClick={async () => { await requestPersistence(); await qc.invalidateQueries({ queryKey: ['local'] }); }}>{t('backup.askPersist')}</button></span>
+              </p>
             )}
-          </Card>
-          <div className="mt-5 grid gap-5 lg:grid-cols-2">
-            <Card>
-              <CardHeader title={t('backup.locations')} />
-              <CardBody className="space-y-2 text-[13px]">
-                {([['dataDir', d.dataDir], ['backupsDir', d.backupsDir], ['documentsDir', d.documentsDir], ['exportDir', d.exportDir]] as const).map(([k, v]) => (
-                  <div key={k}><p className="text-xs text-muted">{t(`backup.${k}`)}</p><p className="break-all font-mono text-[12px]">{v}</p></div>
-                ))}
-                <div><p className="text-xs text-muted">{t('backup.free')}</p><p className="tabular">{size(d.freeBytes)}</p></div>
-              </CardBody>
-            </Card>
-            {s && (
-              <Card>
-                <CardHeader title={t('backup.retention')} />
-                <CardBody>
-                  <form onSubmit={saveSettings} className="grid gap-4">
-                    <Field label={t('backup.exportDir')} htmlFor="bk-dir" hint={t('backup.exportDirHint')}><Input id="bk-dir" className="font-mono text-[12px]" value={s.exportDir} onChange={(e) => setSettings({ ...s, exportDir: e.target.value })} /></Field>
-                    <div className="grid grid-cols-3 gap-3">
-                      {(['daily', 'weekly', 'monthly'] as const).map((k) => (
-                        <Field key={k} label={t(`backup.${k}`)} htmlFor={`bk-${k}`}><Input id={`bk-${k}`} type="number" min={k === 'daily' ? 1 : 0} value={s[k]} onChange={(e) => setSettings({ ...s, [k]: e.target.value })} /></Field>
-                      ))}
-                    </div>
-                    <Button type="submit" variant="secondary" className="justify-self-start" loading={busy === 'settings'}>{t('common.save')}</Button>
-                  </form>
-                </CardBody>
-              </Card>
-            )}
+          </CardBody>
+        </Card>
+      </div>
+
+      {pending && (
+        <Dialog open onOpenChange={(o) => !o && setPending(null)} title={t('backup.confirmTitle')} description={pending.name}
+          footer={<><Button variant="secondary" onClick={() => setPending(null)}>{t('common.cancel')}</Button><Button variant="danger" loading={busy === 'restore'} onClick={() => void doRestore()}>{t('backup.restore')}</Button></>}>
+          <div className="space-y-2 text-[13px]">
+            <p>{t('backup.confirmContents', { companies: pending.check.companies, clients: pending.check.clients, invoices: pending.check.invoices })}</p>
+            <p className="text-warning">{t('backup.confirmWarning')}</p>
           </div>
-        </>
-      )}
-      {restoring && (
-        <Dialog open onOpenChange={(o) => !o && setRestoring(null)} title={t('backup.restoreTitle', { name: restoring })}
-          footer={<><Button variant="secondary" onClick={() => setRestoring(null)}>{t('common.cancel')}</Button><Button type="submit" form="restore-form" variant="danger" loading={busy === 'restore'} disabled={confirmText !== restoring}>{t('backup.restore')}</Button></>}>
-          <form id="restore-form" onSubmit={doRestore} className="space-y-3 text-[13px]">
-            <p>{t('backup.restoreHelp')}</p>
-            <p className="select-all rounded bg-surface-2 px-2 py-1 font-mono text-[12px]">{restoring}</p>
-            <Input aria-label={t('backup.restore')} autoFocus className="font-mono text-[12px]" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
-            {restoreError && <p role="alert" className="text-danger">{restoreError}</p>}
-          </form>
         </Dialog>
       )}
     </>

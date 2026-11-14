@@ -2,11 +2,11 @@ import type { ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
 import { useSession } from '@/contexts/session';
 import { AppShell } from '@/layouts/AppShell';
-import { LoginPage, SetupPage } from '@/pages/AuthPages';
+import { SetupPage } from '@/pages/AuthPages';
 import { HomePage } from '@/pages/HomePage';
 import { CompanyOverviewPage, GeneralSettingsPage, NewCompanyPage } from '@/modules/companies/pages';
-import { ActivitiesPage, MembersPage, NumberingPage, TaxesPage } from '@/modules/companies/settings';
-import { AccountPage, AuditPage, CurrenciesPage, UsersPage } from '@/modules/admin/pages';
+import { ActivitiesPage, NumberingPage, TaxesPage } from '@/modules/companies/settings';
+import { AccountPage, AuditPage, CurrenciesPage } from '@/modules/admin/pages';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ClientDetailPage, ClientsPage } from '@/modules/clients/pages';
 import { CatalogPage } from '@/modules/catalog/pages';
@@ -16,7 +16,7 @@ import { PaymentsPage, ReceiptPage } from '@/modules/payments/pages';
 import { BackupsPage } from '@/modules/admin/BackupsPage';
 
 function Splash() {
-  return <div className="flex h-full items-center justify-center"><img src="/favicon.svg" alt="" className="size-9 animate-pulse" /></div>;
+  return <div className="flex h-full items-center justify-center"><img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-9 animate-pulse" /></div>;
 }
 
 function Protected({ children }: { children: ReactNode }) {
@@ -24,7 +24,7 @@ function Protected({ children }: { children: ReactNode }) {
   const location = useLocation();
   if (loading || !status) return <Splash />;
   if (status.setupRequired) return <Navigate to="/setup" replace />;
-  if (!status.authenticated || !me) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!status.authenticated || !me) return <Navigate to="/setup" replace state={{ from: location.pathname }} />;
   return <>{children}</>;
 }
 
@@ -33,20 +33,17 @@ function OwnerOnly({ children }: { children: ReactNode }) {
   return me?.user.role === 'owner' ? <>{children}</> : <Navigate to="/" replace />;
 }
 
-function PublicOnly({ children, setup }: { children: ReactNode; setup?: boolean }) {
+function PublicOnly({ children }: { children: ReactNode }) {
   const { status, loading } = useSession();
   if (loading || !status) return <Splash />;
-  if (setup && !status.setupRequired) return <Navigate to="/login" replace />;
-  if (!setup && status.setupRequired) return <Navigate to="/setup" replace />;
-  if (status.authenticated) return <Navigate to="/" replace />;
+  if (!status.setupRequired) return <Navigate to="/" replace />;
   return <>{children}</>;
 }
 
 export function App() {
   return (
     <Routes>
-      <Route path="/setup" element={<PublicOnly setup><SetupPage /></PublicOnly>} />
-      <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
+      <Route path="/setup" element={<PublicOnly><SetupPage /></PublicOnly>} />
       <Route element={<Protected><AppShell /></Protected>}>
         <Route index element={<HomePage />} />
         <Route path="companies/new" element={<OwnerOnly><NewCompanyPage /></OwnerOnly>} />
@@ -69,9 +66,7 @@ export function App() {
         <Route path="c/:companyId/settings/activities" element={<ActivitiesPage />} />
         <Route path="c/:companyId/settings/taxes" element={<TaxesPage />} />
         <Route path="c/:companyId/settings/numbering" element={<NumberingPage />} />
-        <Route path="c/:companyId/settings/members" element={<MembersPage />} />
         <Route path="admin/currencies" element={<OwnerOnly><CurrenciesPage /></OwnerOnly>} />
-        <Route path="admin/users" element={<OwnerOnly><UsersPage /></OwnerOnly>} />
         <Route path="admin/backups" element={<OwnerOnly><BackupsPage /></OwnerOnly>} />
         <Route path="admin/audit" element={<OwnerOnly><AuditPage /></OwnerOnly>} />
         <Route path="account" element={<AccountPage />} />

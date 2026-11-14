@@ -2,14 +2,14 @@ import { useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Coins, History, Plus, Trash2, UserPlus } from 'lucide-react';
+import { Coins, History, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/services/api';
-import { qk, useAudit, useCurrencies, useRates, useUsers } from '@/hooks/queries';
+import { qk, useAudit, useCurrencies, useRates } from '@/hooks/queries';
 import { useErrorMessage, useToastError } from '@/hooks/useApiError';
 import { useMe } from '@/contexts/session';
 import { formatDateTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader, Skeleton, Table } from '@/components/ui/card';
+import { Card, CardBody, CardHeader, EmptyState, PageHeader, Skeleton, Table } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Field, Input, Select } from '@/components/ui/input';
 
@@ -124,51 +124,6 @@ export function CurrenciesPage() {
   );
 }
 
-export function UsersPage() {
-  const { t } = useTranslation();
-  const users = useUsers();
-  const qc = useQueryClient();
-  const onError = useToastError();
-  const [form, setForm] = useState<null | { displayName: string; email: string; password: string }>(null);
-  return (
-    <>
-      <PageHeader title={t('users.title')} description={t('users.subtitle')} actions={<Button onClick={() => setForm({ displayName: '', email: '', password: '' })}><UserPlus />{t('users.new')}</Button>} />
-      <Card>
-        {users.isLoading ? <CardBody><Skeleton className="h-20" /></CardBody> : (
-          <Table>
-            <thead><tr><th>{t('members.user')}</th><th>{t('members.role')}</th><th className="hidden sm:table-cell">{t('users.lastLogin')}</th><th className="text-right">{t('common.actions')}</th></tr></thead>
-            <tbody>
-              {users.data?.map((u) => (
-                <tr key={u.id} className={u.isActive ? '' : 'opacity-60'}>
-                  <td><p className="font-medium">{u.displayName}</p><p className="text-xs text-muted">{u.email}</p></td>
-                  <td>{u.role === 'owner' ? <Badge tone="accent">{t('users.owner')}</Badge> : <Badge>{t('users.member')}</Badge>}{!u.isActive && <Badge tone="danger" className="ml-1">{t('users.inactive')}</Badge>}</td>
-                  <td className="hidden text-muted sm:table-cell">{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : t('users.never')}</td>
-                  <td className="text-right">{u.role !== 'owner' && (
-                    <Button variant="secondary" size="sm" onClick={async () => { try { await api.patch(`/admin/users/${u.id}`, { isActive: !u.isActive }); await qc.invalidateQueries({ queryKey: qk.users }); } catch (e) { onError(e); } }}>
-                      {u.isActive ? t('users.deactivate') : t('users.activate')}
-                    </Button>
-                  )}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-      </Card>
-      {form && (
-        <FormDialog title={t('users.new')} open onClose={() => setForm(null)} onSubmit={async () => {
-          await api.post('/admin/users', form);
-          await qc.invalidateQueries({ queryKey: qk.users });
-          toast.success(t('common.created'));
-        }}>
-          <Field label={`${t('auth.displayName')} *`} htmlFor="u-n" className="sm:col-span-2"><Input id="u-n" required autoFocus value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} /></Field>
-          <Field label={`${t('auth.email')} *`} htmlFor="u-e" className="sm:col-span-2"><Input id="u-e" type="email" required autoComplete="off" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-          <Field label={`${t('auth.password')} *`} htmlFor="u-p" hint={t('auth.passwordHint')} className="sm:col-span-2"><Input id="u-p" type="password" required autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
-        </FormDialog>
-      )}
-    </>
-  );
-}
-
 export function AuditPage() {
   const { t } = useTranslation();
   const me = useMe();
@@ -209,61 +164,35 @@ export function AccountPage() {
   const me = useMe();
   const qc = useQueryClient();
   const onError = useToastError();
-  const msg = useErrorMessage();
-  const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const changeLocale = async (locale: 'fr' | 'en') => {
+  const [name, setName] = useState(me.user.displayName);
+  const save = async (body: Record<string, unknown>) => {
     try {
-      await api.patch('/auth/preferences', { locale });
+      await api.patch('/auth/preferences', body);
       await qc.invalidateQueries({ queryKey: ['auth', 'me'] });
+      toast.success(t('common.saved'));
     } catch (e) {
       onError(e);
     }
   };
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (pw.newPassword !== pw.confirm) return setError(t('auth.passwordMismatch'));
-    setBusy(true);
-    try {
-      await api.post('/auth/password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword });
-      setPw({ currentPassword: '', newPassword: '', confirm: '' });
-      toast.success(t('auth.passwordChanged'));
-    } catch (err) {
-      setError(msg(err));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <>
-      <PageHeader title={t('account.title')} description={`${me.user.displayName} · ${me.user.email}`} />
-      <div className="flex flex-col gap-5">
-        <Card>
-          <CardHeader title={t('account.preferences')} />
-          <CardBody>
-            <Field label={t('account.language')} htmlFor="loc" className="max-w-xs">
-              <Select id="loc" value={i18n.language} onChange={(e) => void changeLocale(e.target.value as 'fr' | 'en')}>
-                <option value="fr">{t('account.fr')}</option><option value="en">{t('account.en')}</option>
-              </Select>
-            </Field>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader title={t('auth.changePassword')} />
-          <CardBody>
-            <form onSubmit={submit} className="grid max-w-md gap-4">
-              <Field label={t('auth.currentPassword')} htmlFor="cp"><Input id="cp" type="password" required autoComplete="current-password" value={pw.currentPassword} onChange={(e) => setPw({ ...pw, currentPassword: e.target.value })} /></Field>
-              <Field label={t('auth.newPassword')} htmlFor="np" hint={t('auth.passwordHint')}><Input id="np" type="password" required autoComplete="new-password" value={pw.newPassword} onChange={(e) => setPw({ ...pw, newPassword: e.target.value })} /></Field>
-              <Field label={t('auth.confirmPassword')} htmlFor="np2"><Input id="np2" type="password" required autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /></Field>
-              {error && <p role="alert" className="text-[13px] text-danger">{error}</p>}
-              <Button type="submit" loading={busy} className="justify-self-start">{t('auth.changePassword')}</Button>
-            </form>
-          </CardBody>
-        </Card>
-      </div>
+      <PageHeader title={t('account.title')} description={me.organization.name} />
+      <Card>
+        <CardHeader title={t('account.preferences')} />
+        <CardBody className="grid max-w-md gap-4">
+          <Field label={t('auth.displayName')} htmlFor="acc-name">
+            <div className="flex gap-2">
+              <Input id="acc-name" value={name} onChange={(e) => setName(e.target.value)} />
+              <Button variant="secondary" disabled={!name.trim() || name === me.user.displayName} onClick={() => void save({ displayName: name })}>{t('common.save')}</Button>
+            </div>
+          </Field>
+          <Field label={t('account.language')} htmlFor="loc">
+            <Select id="loc" value={i18n.language} onChange={(e) => void save({ locale: e.target.value })}>
+              <option value="fr">{t('account.fr')}</option><option value="en">{t('account.en')}</option>
+            </Select>
+          </Field>
+        </CardBody>
+      </Card>
     </>
   );
 }
-

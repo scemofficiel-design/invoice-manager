@@ -2,7 +2,7 @@
   "name": "invoice-manager",
   "version": "0.1.0",
   "private": true,
-  "description": "Logiciel local de gestion commerciale et de facturation multi-entreprises",
+  "description": "Gestion commerciale et facturation multi-entreprises — application web pour iPhone, données stockées uniquement sur l'appareil",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -13,19 +13,14 @@
     "frontend"
   ],
   "scripts": {
-    "dev": "concurrently -k -n api,web -c blue,magenta \"npm run dev -w backend\" \"npm run dev -w frontend\"",
-    "build": "npm run build -w frontend && npm run build -w backend",
-    "start": "node scripts/start.mjs",
+    "dev": "npm run dev -w frontend",
+    "build": "npm run build -w frontend",
+    "preview": "cd frontend && npx vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p shared --noEmit && tsc -p backend --noEmit && tsc -p frontend --noEmit",
-    "db:generate": "npm run db:generate -w backend",
-    "backup": "node scripts/run-cli.mjs backup",
-    "reset-password": "node scripts/run-cli.mjs reset-password",
-    "restore": "node scripts/run-cli.mjs restore",
-    "demo": "node scripts/demo.mjs",
     "test:e2e": "playwright test",
-    "make-app": "sh scripts/make-macos-app.sh"
+    "typecheck": "tsc -p shared --noEmit && tsc -p backend --noEmit && tsc -p frontend --noEmit",
+    "db:generate": "npm run db:generate -w backend"
   },
   "devDependencies": {
     "@playwright/test": "1.47.2",

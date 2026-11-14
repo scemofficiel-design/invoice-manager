@@ -129,7 +129,7 @@ export function InvoiceViewPage() {
             {inv.status === 'draft' && <Button variant="secondary" asChild><Link to={`/c/${companyId}/invoices/${inv.id}/edit`}><Pencil />{t('common.edit')}</Link></Button>}
             {inv.status === 'draft' && <Button loading={busy === 'issue'} onClick={() => void act('issue')}><FileCheck2 />{t('invoice.issue')}</Button>}
             {inv.status === 'issued' && inv.balanceMinor > 0 && <Button onClick={() => setDialog('pay')}><Wallet />{t('invoice.recordPayment')}</Button>}
-            <PdfButtons href={`/api/v1/companies/${companyId}/invoices/${inv.id}/pdf`} />
+            <PdfButtons path={`/companies/${companyId}/invoices/${inv.id}/pdf`} />
             <Button variant="secondary" loading={busy === 'duplicate'} onClick={() => void act('duplicate')}><Copy />{t('common.duplicate')}</Button>
             {inv.status === 'issued' && role === 'admin' && <Button variant="ghost" onClick={() => setDialog('cancel')}><Ban />{t('invoice.cancel')}</Button>}
             {inv.status === 'draft' && <Button variant="ghost" loading={busy === 'delete'} onClick={() => void act('delete')}><Trash2 />{t('invoice.deleteDraft')}</Button>}

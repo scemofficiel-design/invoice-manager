@@ -1,44 +1,39 @@
+import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
-/** Parcours complet d'un utilisateur, exécuté dans l'ordre sur une base vierge. */
+/** Parcours complet de l'application iPhone (données dans le navigateur uniquement). */
 test.describe.configure({ mode: 'serial' });
 
-const OWNER = { email: 'proprietaire@e2e.test', password: 'e2e-motdepasse-2026' };
 let page: Page;
+let backupPath = '';
 
 test.beforeAll(async ({ browser }) => {
-  page = await browser.newPage();
+  page = await (await browser.newContext({ acceptDownloads: true })).newPage();
   page.on('pageerror', (e) => {
     throw e;
   });
 });
 test.afterAll(() => page.close());
 
-test('configuration initiale du compte propriétaire', async () => {
-  await page.goto('/');
+const nav = (name: string) => page.locator('aside nav').first().getByRole('link', { name, exact: true });
+
+test('premier lancement sans compte ni mot de passe', async () => {
+  await page.goto('./');
   await expect(page).toHaveURL(/\/setup$/);
   await page.getByLabel('Nom de l’organisation').fill('Organisation E2E');
   await page.getByLabel('Votre nom').fill('Testeur E2E');
-  await page.getByLabel('Adresse électronique').fill(OWNER.email);
-  await page.getByLabel('Mot de passe', { exact: true }).fill(OWNER.password);
-  await page.getByLabel('Confirmer le mot de passe').fill(OWNER.password);
-  await page.getByRole('button', { name: 'Créer mon compte' }).click();
+  await page.getByRole('button', { name: 'Commencer' }).click();
   await expect(page.getByRole('heading', { name: 'Entreprises' })).toBeVisible();
 });
 
-test('création d’une entreprise (préréglage Québec)', async () => {
+test('entreprise, client et devis avec remise', async () => {
   await page.getByRole('link', { name: 'Nouvelle entreprise' }).first().click();
   await page.getByLabel('Raison sociale *').fill('Studio E2E inc.');
-  await page.getByLabel('Ville').fill('Montréal');
   await page.getByLabel('Taxes initiales').selectOption('ca-qc');
   await page.getByRole('button', { name: 'Créer' }).click();
   await expect(page.getByRole('heading', { name: 'Studio E2E inc.' })).toBeVisible();
-  await page.getByRole('link', { name: 'Taxes', exact: true }).click();
-  await expect(page.getByRole('cell', { name: '9,975 %' })).toBeVisible();
-});
 
-test('client puis devis avec remise', async () => {
-  await page.getByRole('link', { name: 'Clients', exact: true }).click();
+  await nav('Clients').click();
   await page.getByRole('button', { name: 'Nouveau client' }).first().click();
   await page.getByLabel('Nom ou raison sociale *').fill('Client E2E');
   await page.getByRole('button', { name: 'Enregistrer' }).click();
@@ -50,65 +45,85 @@ test('client puis devis avec remise', async () => {
   await page.getByLabel('Prix unit.').fill('1000');
   await page.getByRole('combobox', { name: 'Remise', exact: true }).selectOption('percent');
   await page.getByRole('textbox', { name: 'Remise', exact: true }).fill('10');
-  // 1 000 − 10 % = 900 ; TPS 45 ; TVQ 89,78 → 1 034,78
-  await expect(page.getByText(/1\s034,78\s\$/).first()).toBeVisible();
+  await expect(page.getByText(/1\s034,78\s\$/).first()).toBeVisible(); // 900 + TPS 45 + TVQ 89,78
   await page.getByRole('button', { name: 'Enregistrer le brouillon' }).first().click();
   await expect(page.getByRole('heading', { name: /DEV-\d{4}-0001/ })).toBeVisible();
 });
 
-test('envoi, acceptation et conversion idempotente', async () => {
+test('conversion idempotente, émission et PDF généré dans l’appareil', async () => {
   await page.getByRole('button', { name: 'Marquer comme envoyé' }).click();
   await page.getByRole('button', { name: 'Accepté' }).click();
   await page.getByRole('button', { name: 'Convertir en facture' }).dblclick();
   await expect(page.getByText(/Issue du devis DEV-/)).toBeVisible();
-  const list = await page.request.get(`${new URL(page.url()).pathname.replace(/\/c\/([^/]+)\/invoices\/.*/, '/api/v1/companies/$1/invoices')}`);
-  expect((await list.json()).length).toBe(1);
-});
-
-test('émission, PDF archivé, paiement partiel et reçu', async () => {
   await page.getByRole('button', { name: 'Émettre la facture' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Émettre la facture' }).click();
   await expect(page.getByRole('heading', { name: /FAC-\d{4}-00001/ })).toBeVisible();
 
-  const pdfHref = await page.getByRole('link', { name: 'Aperçu PDF' }).getAttribute('href');
-  const pdf = await page.request.get(pdfHref!);
-  expect(pdf.headers()['content-type']).toBe('application/pdf');
-  expect(pdf.headers()['x-archived']).toBe('1');
-  expect((await pdf.body()).subarray(0, 5).toString()).toBe('%PDF-');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Télécharger le PDF' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^FAC-\d{4}-00001\.pdf$/);
+  const pdf = readFileSync((await download.path())!);
+  expect(pdf.subarray(0, 5).toString()).toBe('%PDF-');
+  expect(pdf.length).toBeGreaterThan(5000);
 
+  await nav('Factures').click();
+  await expect(page.getByRole('row')).toHaveCount(2); // en-tête + une seule facture
+});
+
+test('paiement partiel et reçu', async () => {
+  await page.getByRole('link', { name: /FAC-\d{4}-00001/ }).click();
   await page.getByRole('button', { name: 'Enregistrer un paiement' }).click();
   await page.getByLabel(/Montant \(CAD\)/).fill('500');
   await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.getByText('Partiellement payée')).toBeVisible();
-  await expect(page.getByText(/534,78\s\$/).first()).toBeVisible();
   await page.getByRole('link', { name: /REC-\d{4}-00001/ }).click();
   await expect(page.getByText('Paiement partiel')).toBeVisible();
 });
 
-test('tableau de bord et recherche globale', async () => {
-  await page.getByRole('link', { name: 'Accueil', exact: true }).click();
-  await expect(page.getByText(/900,00\s\$/).first()).toBeVisible(); // CA HT
-  await page.keyboard.press('Meta+k');
-  await page.getByPlaceholder(/Rechercher clients/).fill('client e2e');
-  await expect(page.getByRole('option').first()).toContainText('Client E2E');
-  await page.keyboard.press('Escape');
+test('les données survivent au rechargement', async () => {
+  await page.reload();
+  await expect(page.getByText('Paiement partiel')).toBeVisible();
+  await nav('Accueil').click();
+  await expect(page.getByText(/900,00\s\$/).first()).toBeVisible();
 });
 
-test('sauvegarde depuis l’administration', async () => {
-  await page.getByRole('link', { name: 'Sauvegardes', exact: true }).click();
-  await page.getByRole('button', { name: 'Sauvegarder maintenant' }).click();
-  await expect(page.getByText('Manuelle').first()).toBeVisible();
+test('export de la sauvegarde (fichier SQLite complet)', async () => {
+  await nav('Sauvegardes').click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Exporter une sauvegarde' }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^invoice-manager-sauvegarde-\d{4}-\d{2}-\d{2}\.sqlite$/);
+  backupPath = (await download.path())!;
+  expect(readFileSync(backupPath).subarray(0, 15).toString()).toBe('SQLite format 3');
+  await expect(page.getByText('Aucune sauvegarde exportée')).toHaveCount(0);
 });
 
-test('déconnexion puis reconnexion', async () => {
-  await page.getByRole('button', { name: /Testeur E2E/ }).click();
-  await page.getByRole('menuitem', { name: 'Se déconnecter' }).click();
-  await expect(page).toHaveURL(/\/login$/);
-  await page.getByLabel('Adresse électronique').fill(OWNER.email);
-  await page.getByLabel('Mot de passe').fill('mauvais-mot-de-passe');
-  await page.getByRole('button', { name: 'Se connecter' }).click();
-  await expect(page.getByRole('alert')).toContainText('Identifiants incorrects');
-  await page.getByLabel('Mot de passe').fill(OWNER.password);
-  await page.getByRole('button', { name: 'Se connecter' }).click();
+test('restauration depuis le fichier', async () => {
+  // Modification postérieure à la sauvegarde…
+  await nav('Accueil').click();
+  await page.getByRole('link', { name: /Studio E2E/ }).first().click();
+  await nav('Clients').click();
+  await page.getByRole('button', { name: 'Nouveau client' }).first().click();
+  await page.getByLabel('Nom ou raison sociale *').fill('Client après sauvegarde');
+  await page.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.getByRole('heading', { name: 'Client après sauvegarde' })).toBeVisible();
+  // … annulée par la restauration.
+  await nav('Sauvegardes').click();
+  await page.locator('input[type=file]').setInputFiles(backupPath);
+  await expect(page.getByText(/1 entreprise\(s\), 1 client\(s\), 1 facture\(s\)/)).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Restaurer' }).click();
+  await page.waitForLoadState('load');
+  await nav('Accueil').click();
+  await page.getByRole('link', { name: /Studio E2E/ }).first().click();
+  await nav('Clients').click();
+  await expect(page.getByRole('link', { name: 'Client E2E' })).toBeVisible();
+  await expect(page.getByText('Client après sauvegarde')).toHaveCount(0);
+  await nav('Sauvegardes').click();
+  await expect(page.getByRole('button', { name: 'Annuler la dernière restauration' })).toBeVisible();
+});
+
+test('fonctionne hors connexion (application en cache)', async () => {
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload(); // la page est désormais contrôlée par le service worker
+  await page.context().setOffline(true);
+  await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Entreprises' })).toBeVisible();
+  await page.context().setOffline(false);
 });

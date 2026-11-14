@@ -1,40 +1,52 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
-import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import './styles/index.css';
 import './i18n';
-import { ApiError } from './services/api';
+import { boot } from './local/runtime';
 import { SessionProvider } from './contexts/session';
 import { ConfirmProvider } from './contexts/confirm';
 import { App } from './App';
+import { registerServiceWorker } from './pwa';
 
-/** Session expirée : on renvoie vers la connexion en rafraîchissant l'état d'authentification. */
-const onAuthError = (err: unknown) => {
-  if (err instanceof ApiError && err.status === 401 && !location.pathname.startsWith('/login')) {
-    void queryClient.invalidateQueries({ queryKey: ['auth', 'status'] });
-  }
-};
 const queryClient = new QueryClient({
-  queryCache: new QueryCache({ onError: onAuthError }),
-  mutationCache: new MutationCache({ onError: onAuthError }),
-  defaultOptions: {
-    queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: (n, e) => !(e instanceof ApiError && e.status < 500) && n < 2 },
-  },
+  defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false, retry: false } },
 });
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <SessionProvider>
-          <ConfirmProvider>
-            <App />
-          </ConfirmProvider>
-        </SessionProvider>
-      </BrowserRouter>
-      <Toaster position="bottom-right" richColors closeButton theme="system" />
-    </QueryClientProvider>
-  </StrictMode>,
-);
+const root = createRoot(document.getElementById('root')!);
+
+boot()
+  .then(() => {
+    root.render(
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <SessionProvider>
+              <ConfirmProvider>
+                <App />
+              </ConfirmProvider>
+            </SessionProvider>
+          </BrowserRouter>
+          <Toaster position="top-center" richColors closeButton theme="system" />
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+    registerServiceWorker();
+  })
+  .catch((err: unknown) => {
+    console.error(err);
+    const el = document.getElementById('root')!;
+    el.innerHTML = '';
+    const box = document.createElement('div');
+    box.style.cssText = 'max-width:28rem;margin:20vh auto;padding:1.5rem;font-family:system-ui;text-align:center';
+    const h = document.createElement('p');
+    h.style.fontWeight = '600';
+    h.textContent = 'Impossible d’ouvrir les données de l’application.';
+    const p = document.createElement('p');
+    p.style.cssText = 'color:#666;font-size:14px;margin-top:.5rem';
+    p.textContent = String((err as Error)?.message ?? err);
+    box.append(h, p);
+    el.append(box);
+  });

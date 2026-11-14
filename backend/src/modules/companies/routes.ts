@@ -52,7 +52,7 @@ export async function companyRoutes(app: FastifyInstance) {
   app.get('/companies/:companyId/logo', { preHandler: companyAccess('viewer') }, async (req, reply) => {
     const row = getCompanyRow(conn, req.company!.id);
     if (!row.logoFileId) return reply.code(404).send({ error: { code: 'NOT_FOUND', message: 'Aucun logo' } });
-    const f = readStoredFile(conn.db, row.logoFileId, row.id);
+    const f = readStoredFile(conn, row.logoFileId, row.id);
     return reply.header('content-type', f.mime).header('cache-control', 'private, max-age=60').send(f.content);
   });
   app.put('/companies/:companyId/logo', { preHandler: companyAccess('admin'), bodyLimit: 3 * 1024 * 1024 }, async (req, reply) => {

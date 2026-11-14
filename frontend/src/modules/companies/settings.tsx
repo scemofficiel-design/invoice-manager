@@ -3,16 +3,15 @@ import { useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Archive, ArchiveRestore, Layers, Pencil, Percent, Plus, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Layers, Pencil, Percent, Plus } from 'lucide-react';
 import { parsePercent, percentToString } from '@im/shared/money';
 import type { Activity, NumberingSequence, Tax } from '@im/shared/types';
-import { COMPANY_ROLES, type CompanyRole, type DocType } from '@im/shared/constants';
+import { type DocType } from '@im/shared/constants';
 import { api } from '@/services/api';
-import { qk, useActivities, useCompany, useMembers, useNumbering, useTaxes, useUsers } from '@/hooks/queries';
+import { qk, useActivities, useCompany, useNumbering, useTaxes } from '@/hooks/queries';
 import { useErrorMessage, useToastError } from '@/hooks/useApiError';
-import { useMe } from '@/contexts/session';
 import { Button } from '@/components/ui/button';
-import { Badge, Card, CardBody, CardHeader, EmptyState, PageHeader, Skeleton, Table } from '@/components/ui/card';
+import { Badge, Card, CardBody, EmptyState, PageHeader, Skeleton, Table } from '@/components/ui/card';
 import { Dialog } from '@/components/ui/dialog';
 import { Checkbox, Field, Input, Select, Textarea } from '@/components/ui/input';
 import { formatRate } from './pages';
@@ -257,67 +256,6 @@ export function NumberingPage() {
     <>
       <PageHeader title={t('numbering.title')} description={t('numbering.subtitle')} />
       <Card>{list.isLoading ? <CardBody><Skeleton className="h-40" /></CardBody> : list.data?.map((s) => <SequenceRow key={`${s.docType}-${s.pattern}-${s.nextValue}`} companyId={companyId} seq={s} isAdmin={isAdmin} />)}</Card>
-    </>
-  );
-}
-
-// ── Accès ──────────────────────────────────────────────────────────────
-
-export function MembersPage() {
-  const { t } = useTranslation();
-  const { companyId = '' } = useParams();
-  const me = useMe();
-  const members = useMembers(companyId);
-  const users = useUsers(me.user.role === 'owner');
-  const qc = useQueryClient();
-  const onError = useToastError();
-  const [userId, setUserId] = useState('');
-  const [role, setRole] = useState<CompanyRole>('editor');
-  const candidates = users.data?.filter((u) => u.isActive && !members.data?.some((m) => m.userId === u.id)) ?? [];
-  const setMember = async (uid: string, r: CompanyRole) => {
-    try {
-      const data = await api.put(`/companies/${companyId}/members`, { userId: uid, role: r });
-      qc.setQueryData(qk.members(companyId), data);
-      setUserId('');
-    } catch (e) {
-      onError(e);
-    }
-  };
-  const remove = async (uid: string) => {
-    try {
-      await api.del(`/companies/${companyId}/members/${uid}`);
-      await qc.invalidateQueries({ queryKey: qk.members(companyId) });
-    } catch (e) {
-      onError(e);
-    }
-  };
-  return (
-    <>
-      <PageHeader title={t('members.title')} description={t('members.subtitle')} />
-      <Card>
-        <CardHeader title={t('members.title')} description={t('members.ownerNote')} />
-        {members.isLoading ? <CardBody><Skeleton className="h-20" /></CardBody> : (
-          <Table>
-            <thead><tr><th>{t('members.user')}</th><th>{t('members.role')}</th><th className="text-right">{t('common.actions')}</th></tr></thead>
-            <tbody>
-              {members.data?.map((m) => (
-                <tr key={m.userId}>
-                  <td><p className="font-medium">{m.displayName}</p><p className="text-xs text-muted">{m.email}</p></td>
-                  <td><Select aria-label={t('members.role')} className="h-8 w-40" value={m.role} disabled={m.userId === me.user.id} onChange={(e) => void setMember(m.userId, e.target.value as CompanyRole)}>{COMPANY_ROLES.map((r) => <option key={r} value={r}>{t(`members.${r}`)}</option>)}</Select></td>
-                  <td className="text-right">{m.userId !== me.user.id && <Button variant="ghost" size="icon" aria-label={t('common.remove')} onClick={() => void remove(m.userId)}><Trash2 /></Button>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
-        )}
-        {me.user.role === 'owner' && candidates.length > 0 && (
-          <div className="flex flex-wrap items-end gap-3 border-t border-border px-5 py-4">
-            <Field label={t('members.user')} htmlFor="m-user" className="min-w-48 flex-1"><Select id="m-user" value={userId} onChange={(e) => setUserId(e.target.value)}><option value="">—</option>{candidates.map((u) => <option key={u.id} value={u.id}>{u.displayName} ({u.email})</option>)}</Select></Field>
-            <Field label={t('members.role')} htmlFor="m-role"><Select id="m-role" value={role} onChange={(e) => setRole(e.target.value as CompanyRole)}>{COMPANY_ROLES.map((r) => <option key={r} value={r}>{t(`members.${r}`)}</option>)}</Select></Field>
-            <Button disabled={!userId} onClick={() => void setMember(userId, role)}><Plus />{t('members.grant')}</Button>
-          </div>
-        )}
-      </Card>
     </>
   );
 }

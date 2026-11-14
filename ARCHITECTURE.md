@@ -4,6 +4,40 @@
 > Ce document fixe les décisions techniques et le modèle de données de la V1.
 > Toute modification significative passera par une mise à jour de la section « Décisions » (ADR).
 
+
+> **Mise à jour 2026-11-14 — l'application est désormais une application web 100 % iPhone.**
+> La section 0 ci-dessous décrit l'architecture en vigueur. Les sections suivantes décrivent la V1
+> (serveur local sur Mac) : le modèle de données, les règles métier et le moteur de calcul restent
+> valables et sont réutilisés tels quels ; les parties serveur, comptes, lanceur et sauvegardes
+> serveur sont remplacées.
+
+## 0. Architecture en vigueur : application iPhone (V2)
+
+```
+GitHub (dépôt public)  ──push──▶  GitHub Actions : types, tests, compilation  ──▶  GitHub Pages
+                                                                                   (fichiers statiques)
+iPhone (Safari / écran d'accueil)
+ ├── Interface React (frontend/src)
+ ├── Moteur local (frontend/src/local)
+ │    ├── Mini-routeur compatible Fastify → exécute les modules métier de backend/src
+ │    ├── SQLite en WebAssembly (sql.js) : même schéma, mêmes migrations, mêmes triggers
+ │    ├── Enregistrement de la base dans IndexedDB AVANT chaque confirmation à l'écran
+ │    └── PDF générés par pdfmake dans le navigateur (chargé à la demande)
+ └── Service worker : application disponible hors connexion
+```
+
+| Sujet | Décision |
+|---|---|
+| Hébergement | GitHub Pages, publication par GitHub Actions à chaque push (`.github/workflows/pages.yml`) |
+| Données | Uniquement sur l'appareil (IndexedDB) ; persistance demandée via `navigator.storage.persist()` |
+| Comptes | Aucun : un seul utilisateur, protégé par le verrouillage de l'iPhone. Rôles et multi-utilisateurs retirés de l'interface |
+| Fichiers | PDF et logos stockés dans la base (BLOB + SHA-256 vérifié) ; lecture binaire via SQLite brut (le pilote sql.js de Drizzle convertit les BLOB en texte) |
+| PDF sur iPhone | Feuille de partage iOS (aperçu, Imprimer, Fichiers, Mail, AirDrop) ; sur ordinateur : aperçu + téléchargement |
+| Sauvegardes | Export d'un fichier `.sqlite` complet via Partager ; restauration avec contrôle d'intégrité, version de schéma et copie de l'état précédent (annulable) ; rappel après 7 jours |
+| Sécurité | CSP stricte (aucune connexion externe, `wasm-unsafe-eval` pour SQLite), aucun traceur, aucune requête réseau de données |
+| Tests | 102 tests Vitest du noyau (banc de test Node, mêmes modules) + 8 étapes Playwright sur l'application compilée comme sur GitHub Pages (PDF, persistance, sauvegarde/restauration, hors connexion) |
+| Limite connue | Effacer les données de Safari ou supprimer l'icône efface les données : l'export régulier est indispensable |
+
 ---
 
 ## 1. Environnement constaté
